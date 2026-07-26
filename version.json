@@ -1,0 +1,7 @@
+{
+  "version": "0.0.1",
+  "codename": "Baer",
+  "theme": "Videopac/Odyssey²-pioniers",
+  "released": "2026-07-26",
+  "lockstep": ["Meta_VideopacHorse", "VideopacHorse_Core", "VideopacHorse_Web", "VideopacHorse_Android", "VideopacHorse_SteamDeck"]
+}
