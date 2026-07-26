@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VideopacHorse — Philips Videopac G7000 emulator</title>
+<style>
+:root {
+  --accent: #f5a623;
+  --bg: #14151c;
+  --panel-bg: #1e2029;
+  --panel-border: #33364a;
+  --text: #e8e8ef;
+  --text-dim: #9a9db3;
+  --btn-primary: #f5a623;
+  --btn-primary-text: #1a1200;
+  --btn-secondary: #33364a;
+  --btn-danger: #c0392b;
+  --badge-ok: #27ae60;
+  --badge-warn: #f39c12;
+  --badge-err: #c0392b;
+  --canvas-border: #33364a;
+  --canvas-bg: #000000;
+  --kbd-bg: #2a2d3d;
+  --font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-size: 15px;
+  --h1-size: 26px;
+  --container-w: 980px;
+  --card-radius: 10px;
+  --card-pad: 16px;
+  --canvas-scale: 3;
+}
+:root[data-theme="light"] {
+  --bg: #f2f2f6;
+  --panel-bg: #ffffff;
+  --panel-border: #d5d7e2;
+  --text: #23242c;
+  --text-dim: #666a80;
+  --btn-secondary: #e2e4ef;
+  --kbd-bg: #e8eaf2;
+  --canvas-border: #c5c8d8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-family); font-size: var(--font-size);
+}
+.wrap { max-width: var(--container-w); margin: 0 auto; padding: 18px; }
+h1 { font-size: var(--h1-size); margin: 0 0 4px; }
+h1 span { color: var(--accent); }
+.sub { color: var(--text-dim); margin: 0 0 16px; }
+.card {
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  border-radius: var(--card-radius); padding: var(--card-pad); margin-bottom: 14px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button {
+  font: inherit; border: 0; border-radius: 7px; padding: 8px 16px; cursor: pointer;
+  background: var(--btn-secondary); color: var(--text);
+}
+button.primary { background: var(--btn-primary); color: var(--btn-primary-text); font-weight: 600; }
+button.danger { background: var(--btn-danger); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 99px;
+  font-size: .82em; color: #fff; background: var(--badge-warn);
+}
+.badge.ok { background: var(--badge-ok); }
+.badge.err { background: var(--badge-err); }
+#screen {
+  display: block; margin: 0 auto; image-rendering: pixelated;
+  border: 2px solid var(--canvas-border); border-radius: 6px;
+  background: var(--canvas-bg); max-width: 100%;
+}
+.filerow { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; margin-bottom: 8px; }
+.filerow label { color: var(--text-dim); }
+input[type="file"] { color: var(--text-dim); max-width: 100%; }
+.kbd { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 10px; }
+.kbd button { padding: 7px 0; background: var(--kbd-bg); font-size: .85em; }
+details.config summary { cursor: pointer; font-weight: 600; }
+.cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px 18px; margin-top: 12px; }
+.cfg-grid label { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-dim); font-size: .9em; }
+.cfg-grid input[type="color"] { width: 44px; height: 26px; border: 0; padding: 0; background: none; }
+.cfg-grid input[type="range"] { width: 110px; }
+.cfg-grid select { font: inherit; }
+.help { color: var(--text-dim); font-size: .9em; line-height: 1.5; }
+kbd { background: var(--kbd-bg); border-radius: 4px; padding: 1px 6px; font-size: .85em; }
+footer { color: var(--text-dim); font-size: .85em; margin-top: 18px; }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Videopac<span>Horse</span></h1>
+  <p class="sub">Philips Videopac G7000 / Magnavox Odyssey² emulator — draait volledig in je browser. <span id="verBadge" class="badge">core laden…</span></p>
+
+  <div class="card">
+    <canvas id="screen" width="320" height="240"></canvas>
+    <div class="row" style="justify-content:center; margin-top:12px">
+      <button id="btnStart" class="primary" disabled>▶ Start</button>
+      <button id="btnPause" disabled>⏸ Pauze</button>
+      <button id="btnReset" disabled>↺ Reset</button>
+      <button id="btnColdReset" disabled>⏻ Power-cycle</button>
+      <label><input type="checkbox" id="chkNtsc"> NTSC (60 Hz)</label>
+      <span id="fps" class="help"></span>
+    </div>
+    <div class="kbd" id="consoleKbd" hidden></div>
+    <div class="row" style="justify-content:center; margin-top:8px">
+      <button id="btnKbd">⌨ Console-toetsenbord</button>
+      <button id="btnFullscreen">⛶ Volledig scherm</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="filerow">
+      <label>BIOS (1 KB)</label>
+      <input type="file" id="fileBios">
+      <span id="biosBadge" class="badge err">ontbreekt</span>
+    </div>
+    <div class="filerow">
+      <label>Cartridge</label>
+      <input type="file" id="fileRom">
+      <span id="romBadge" class="badge err">ontbreekt</span>
+    </div>
+    <p class="help">Je BIOS (<code>o2rom.bin</code>, 1024 bytes — dump van je eigen console) en game-ROMs
+    blijven <strong>in je browser</strong> (IndexedDB). Er wordt niets geüpload; deze site heeft geen backend.
+    Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
+    console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.</p>
+  </div>
+
+  <details class="config card" id="configCard">
+    <summary>⚙ Configuratie (thema, kleuren, typografie, layout)</summary>
+    <div class="row" style="margin-top:10px">
+      <label>Thema:
+        <select id="cfgTheme" data-cfg="theme">
+          <option value="dark">donker</option>
+          <option value="light">licht</option>
+        </select>
+      </label>
+      <button id="cfgExport">⬇ Exporteer .json</button>
+      <label style="cursor:pointer"><span class="badge">⬆ Importeer .json</span>
+        <input type="file" id="cfgImport" accept=".json" hidden></label>
+      <button id="cfgReset" class="danger">↺ Reset naar standaard</button>
+    </div>
+    <div class="cfg-grid" id="cfgColors">
+      <label>Accent <input type="color" data-cssvar="--accent"></label>
+      <label>Achtergrond <input type="color" data-cssvar="--bg"></label>
+      <label>Paneel <input type="color" data-cssvar="--panel-bg"></label>
+      <label>Paneelrand <input type="color" data-cssvar="--panel-border"></label>
+      <label>Tekst <input type="color" data-cssvar="--text"></label>
+      <label>Tekst gedimd <input type="color" data-cssvar="--text-dim"></label>
+      <label>Knop primair <input type="color" data-cssvar="--btn-primary"></label>
+      <label>Knop secundair <input type="color" data-cssvar="--btn-secondary"></label>
+      <label>Knop gevaar <input type="color" data-cssvar="--btn-danger"></label>
+      <label>Badge ok <input type="color" data-cssvar="--badge-ok"></label>
+      <label>Badge warn <input type="color" data-cssvar="--badge-warn"></label>
+      <label>Badge fout <input type="color" data-cssvar="--badge-err"></label>
+      <label>Canvasrand <input type="color" data-cssvar="--canvas-border"></label>
+      <label>Canvas-achtergrond <input type="color" data-cssvar="--canvas-bg"></label>
+      <label>Toetsenbord <input type="color" data-cssvar="--kbd-bg"></label>
+    </div>
+    <div class="cfg-grid">
+      <label>Lettertype
+        <select data-cssvar="--font-family" data-kind="raw">
+          <option value='system-ui, -apple-system, "Segoe UI", sans-serif'>Systeem</option>
+          <option value='Georgia, "Times New Roman", serif'>Serif</option>
+          <option value='"Courier New", ui-monospace, monospace'>Mono (retro)</option>
+        </select>
+      </label>
+      <label>Tekstgrootte <input type="range" min="12" max="20" data-cssvar="--font-size" data-unit="px"></label>
+      <label>Kopgrootte <input type="range" min="18" max="40" data-cssvar="--h1-size" data-unit="px"></label>
+      <label>Paginabreedte <input type="range" min="640" max="1400" data-cssvar="--container-w" data-unit="px"></label>
+      <label>Kaart-radius <input type="range" min="0" max="24" data-cssvar="--card-radius" data-unit="px"></label>
+      <label>Kaart-padding <input type="range" min="6" max="32" data-cssvar="--card-pad" data-unit="px"></label>
+      <label>Beeldschaal <input type="range" min="1" max="4" data-cssvar="--canvas-scale" data-kind="scale"></label>
+    </div>
+  </details>
+
+  <footer>
+    VideopacHorse v<span id="verFoot">0.1.0</span> · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Core">broncode</a> ·
+    100% from-scratch engine, geen ROMs op deze server.
+  </footer>
+</div>
+<script src="g7000.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
