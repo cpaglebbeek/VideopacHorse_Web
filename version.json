@@ -1,7 +1,13 @@
 {
-  "version": "0.0.1",
-  "codename": "Baer",
+  "version": "0.1.0",
+  "codename": "Averett",
   "theme": "Videopac/Odyssey²-pioniers",
   "released": "2026-07-26",
-  "lockstep": ["Meta_VideopacHorse", "VideopacHorse_Core", "VideopacHorse_Web", "VideopacHorse_Android", "VideopacHorse_SteamDeck"]
+  "lockstep": [
+    "Meta_VideopacHorse",
+    "VideopacHorse_Core",
+    "VideopacHorse_Web",
+    "VideopacHorse_Android",
+    "VideopacHorse_SteamDeck"
+  ]
 }
