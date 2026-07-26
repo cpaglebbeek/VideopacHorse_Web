@@ -5,6 +5,10 @@
  */
 'use strict';
 
+/* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
+ * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
+const BUILD_V = '0.1.1';
+
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
 const cfgInputs = () => document.querySelectorAll('[data-cssvar], [data-cfg]');
@@ -144,7 +148,7 @@ async function loadCore() {
     setBadge('verBadge', false, '', 'g7000.js ontbreekt — draai build.sh');
     return;
   }
-  S.mod = await createG7000();
+  S.mod = await createG7000({ locateFile: f => f + '?v=' + BUILD_V });
   const cw = S.mod.cwrap;
   S.api = {
     create: cw('g7k_create', 'number', []),
