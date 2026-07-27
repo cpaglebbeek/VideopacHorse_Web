@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.1.2';
+const BUILD_V = '0.2.0';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
@@ -129,8 +129,20 @@ const S = {
   audioCtx: null, audioNode: null, audioBufPtr: 0,
   ring: new Float32Array(32768), ringR: 0, ringW: 0,
   frames: 0, lastFpsT: 0,
-  joy: [0, 0],
+  joy: [0, 0],                       /* gecombineerd mask zoals aan de core doorgegeven */
+  joyKb: [0, 0], joyGp: [0, 0], joyBle: [0, 0],   /* per bron; pushJoy OR't ze */
 };
+
+/* Combineer per speler alle input-bronnen (toetsenbord | gamepad | BLE-telefoon)
+ * en geef alleen bij échte verandering door aan de core. Zo wist een
+ * BLE-heartbeat geen toetsenbord-input en vecht een gamepad niet per frame
+ * met de telefoon. */
+function pushJoy(p) {
+  const m = (S.joyKb[p] | S.joyGp[p] | S.joyBle[p]) & 0x1f;
+  if (m === S.joy[p]) return;
+  S.joy[p] = m;
+  if (S.api) S.api.joy(S.sys, p, m);
+}
 
 const JOY = { UP: 1, DOWN: 2, LEFT: 4, RIGHT: 8, FIRE: 16 };
 const KEYMAP1 = { ArrowUp: JOY.UP, ArrowDown: JOY.DOWN, ArrowLeft: JOY.LEFT, ArrowRight: JOY.RIGHT, ' ': JOY.FIRE };
@@ -272,9 +284,8 @@ function handleKey(ev, down) {
   if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
   const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
   let hit = false;
-  if (k in KEYMAP1) { S.joy[0] = down ? S.joy[0] | KEYMAP1[k] : S.joy[0] & ~KEYMAP1[k]; hit = true; }
-  if (k in KEYMAP2) { S.joy[1] = down ? S.joy[1] | KEYMAP2[k] : S.joy[1] & ~KEYMAP2[k]; hit = true; }
-  if (S.api && hit) { S.api.joy(S.sys, 0, S.joy[0]); S.api.joy(S.sys, 1, S.joy[1]); }
+  if (k in KEYMAP1) { S.joyKb[0] = down ? S.joyKb[0] | KEYMAP1[k] : S.joyKb[0] & ~KEYMAP1[k]; pushJoy(0); hit = true; }
+  if (k in KEYMAP2) { S.joyKb[1] = down ? S.joyKb[1] | KEYMAP2[k] : S.joyKb[1] & ~KEYMAP2[k]; pushJoy(1); hit = true; }
   if (S.api && !hit && ev.key.length === 1) {
     const code = S.api.keyFromChar(ev.key.toUpperCase().charCodeAt(0));
     if (code !== 0xFF) { S.api.keySet(S.sys, code, down ? 1 : 0); hit = true; }
@@ -296,9 +307,237 @@ function pollGamepads() {
     if (gp.axes[0] < -0.5 || (gp.buttons[14] && gp.buttons[14].pressed)) m |= JOY.LEFT;
     if (gp.axes[0] > 0.5 || (gp.buttons[15] && gp.buttons[15].pressed)) m |= JOY.RIGHT;
     if (gp.buttons[0] && gp.buttons[0].pressed) m |= JOY.FIRE;
-    if (m !== S.joy[p]) { S.joy[p] = m; S.api.joy(S.sys, p, m); }
+    if (m !== S.joyGp[p]) { S.joyGp[p] = m; pushJoy(p); }
   }
 }
+
+/* ---------------- bleJoy: telefoon als joystick via Web Bluetooth ----------------
+ * Protocol (bindend, gedeeld met de Android-app VideopacHorse_Joystick):
+ *  - service   7a0b1000-56e1-4d2a-9f0a-c0de00000001
+ *  - char "joy" 7a0b1000-56e1-4d2a-9f0a-c0de00000002 (NOTIFY + READ)
+ *  - payload exact 9 bytes: byte 0-7 = stabiel apparaat-ID (eerste 8 bytes van
+ *    SHA-256 over ANDROID_ID), byte 8 = bitmask bit0=UP bit1=DOWN bit2=LEFT
+ *    bit3=RIGHT bit4=FIRE (identiek aan G7K_JOY_* in g7000.h).
+ *  - telefoon notify't bij elke maskverandering + heartbeat elke 500 ms;
+ *    blijft het hier >2 s stil dan zetten we het BLE-mask op 0 (failsafe:
+ *    stick los; toetsenbord/gamepad-input van die speler blijft staan).
+ *  - naam in de UI is altijd 'VPH-<laatste 4 hex van het ID>' — gelijk aan wat
+ *    de app op het telefoonscherm toont. De browser-chooser kan wel de kale
+ *    OS-naam tonen (Android kent geen per-advertentie local name; zie
+ *    VideopacHorse_Joystick/README).
+ *  - speler-mapping is botsingsvrij: opgeslagen voorkeur geldt zolang die
+ *    speler niet door een andere actieve telefoon bezet is; derde telefoon
+ *    wordt geparkeerd (geen speler) tot de gebruiker wisselt; wisselen naar
+ *    een bezette speler swapt beide telefoons.
+ * Web Bluetooth is Chromium-only; de knop verschijnt alleen na feature-detect. */
+
+const BLE_SERVICE = '7a0b1000-56e1-4d2a-9f0a-c0de00000001';
+const BLE_CHAR_JOY = '7a0b1000-56e1-4d2a-9f0a-c0de00000002';
+const BLE_LS_KEY = 'videopachorse.blejoy.v1';
+const BLE_HB_TIMEOUT = 2000;   /* ms zonder notificatie ⇒ failsafe mask 0 */
+const BLE_RECONNECT_MAX = 3;
+
+/* Pure payload-parser (DOM-loos, apart testbaar): Uint8Array(9) → {idHex, mask}
+ * of null bij foute lengte. Bits >4 van het mask worden defensief gestript. */
+function bleParsePayload(u8) {
+  if (!u8 || u8.length !== 9) return null;
+  let idHex = '';
+  for (let i = 0; i < 8; i++) idHex += u8[i].toString(16).padStart(2, '0');
+  return { idHex, mask: u8[8] & 0x1f };
+}
+
+const bleJoy = {
+  phones: new Map(),       /* idHex → {device, idHex, player, status, watchdog, name} */
+  byDevice: new WeakMap(), /* BluetoothDevice → idHex (weak: geen lek bij weggevallen devices) */
+  listened: new WeakSet(), /* characteristics met notify-listener — Chromium cachet het
+                            * characteristic-object per device, dus max 1 listener per object
+                            * ook na n reconnects */
+
+  loadMap() {
+    try { return JSON.parse(localStorage.getItem(BLE_LS_KEY)) || {}; }
+    catch (e) { return {}; }
+  },
+  saveMap(m) { localStorage.setItem(BLE_LS_KEY, JSON.stringify(m)); },
+
+  /* spelers die op dit moment door een ándere actieve telefoon bezet zijn */
+  activePlayers(exceptIdHex) {
+    const taken = new Set();
+    for (const ph of this.phones.values())
+      if (ph.idHex !== exceptIdHex && ph.player !== null) taken.add(ph.player);
+    return taken;
+  },
+
+  /* Botsingsvrij: de opgeslagen voorkeur (localStorage) geldt zolang die
+   * speler niet al door een andere actieve telefoon bezet is; anders de
+   * eerste vrije speler; beide bezet ⇒ null (geparkeerd — input wordt
+   * genegeerd tot de gebruiker via de badge wisselt). Zo voeden nooit twee
+   * bronnen stilzwijgend dezelfde speler. */
+  assignPlayer(idHex) {
+    const map = this.loadMap();
+    const taken = this.activePlayers(idHex);
+    if (idHex in map && !taken.has(map[idHex])) return map[idHex];
+    const player = !taken.has(0) ? 0 : (!taken.has(1) ? 1 : null);
+    if (player !== null) { map[idHex] = player; this.saveMap(map); }
+    return player;
+  },
+
+  /* Wisselen van speler; is de doelspeler bezet door een andere telefoon dan
+   * wisselen beide van plaats (swap) — nooit een stil dubbel-bezette speler. */
+  togglePlayer(idHex) {
+    const ph = this.phones.get(idHex);
+    if (!ph) return;
+    const target = ph.player === 0 ? 1 : 0;
+    const map = this.loadMap();
+    for (const other of this.phones.values()) {
+      if (other.idHex !== idHex && other.player === target) {
+        this.applyMask(other.idHex, 0);   /* doelpositie eerst loslaten */
+        other.player = ph.player;         /* kan null zijn: other geparkeerd */
+        if (other.player === null) delete map[other.idHex];
+        else map[other.idHex] = other.player;
+      }
+    }
+    this.applyMask(idHex, 0);   /* oude spelerpositie loslaten */
+    ph.player = target;
+    map[idHex] = target;
+    this.saveMap(map);
+    this.render();
+  },
+
+  applyMask(idHex, mask) {
+    const ph = this.phones.get(idHex);
+    if (!ph || ph.player === null) return;   /* geparkeerd: input negeren */
+    S.joyBle[ph.player] = mask;
+    pushJoy(ph.player);
+  },
+
+  armWatchdog(idHex) {
+    const ph = this.phones.get(idHex);
+    if (!ph) return;
+    clearTimeout(ph.watchdog);
+    ph.watchdog = setTimeout(() => {
+      this.applyMask(idHex, 0);   /* failsafe: telefoon stil ⇒ stick los */
+      ph.status = 'stil (geen heartbeat)';
+      this.render();
+    }, BLE_HB_TIMEOUT);
+  },
+
+  register(device, idHex) {
+    const ph = {
+      device, idHex,
+      player: this.assignPlayer(idHex),
+      status: 'verbonden',
+      watchdog: 0,
+      /* Altijd de uit het ID afgeleide naam — identiek aan wat de app op het
+       * telefoonscherm toont (DeviceId.shortName). device.name is de kale
+       * OS-naam van de telefoon en dus onbruikbaar om twee toestellen uit
+       * elkaar te houden. */
+      name: 'VPH-' + idHex.slice(12).toUpperCase(),
+    };
+    this.phones.set(idHex, ph);
+    this.byDevice.set(device, idHex);
+    return ph;
+  },
+
+  onNotify(device, dv) {
+    const p = bleParsePayload(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
+    if (!p) return;
+    let ph = this.phones.get(p.idHex);
+    const isNew = !ph;
+    if (!ph) ph = this.register(device, p.idHex);
+    const statusChanged = ph.status !== 'verbonden';
+    ph.status = 'verbonden';
+    /* BLE-bronmask bijwerken; pushJoy geeft alleen échte veranderingen door
+     * aan de core, dus de 500 ms-heartbeat wist geen toetsenbord-input */
+    this.applyMask(p.idHex, p.mask);
+    this.armWatchdog(p.idHex);
+    if (isNew || statusChanged) this.render();
+  },
+
+  async addPhone() {
+    try {
+      const device = await navigator.bluetooth.requestDevice({
+        filters: [{ services: [BLE_SERVICE] }],
+      });
+      await this.connect(device);
+    } catch (e) { /* chooser geannuleerd of verbinden mislukt — geen UI-fout */ }
+  },
+
+  async connect(device) {
+    const server = await device.gatt.connect();
+    const svc = await server.getPrimaryService(BLE_SERVICE);
+    const ch = await svc.getCharacteristic(BLE_CHAR_JOY);
+    /* max 1 listener per characteristic-object, ook na reconnects */
+    if (!this.listened.has(ch)) {
+      ch.addEventListener('characteristicvaluechanged',
+        ev => this.onNotify(device, ev.target.value));
+      this.listened.add(ch);
+    }
+    await ch.startNotifications();
+    device.addEventListener('gattserverdisconnected',
+      () => this.onDisconnect(device), { once: true });
+    /* char is ook READ: ID meteen ophalen zodat de badge direct verschijnt */
+    try { this.onNotify(device, await ch.readValue()); }
+    catch (e) { /* eerste notify levert het ID alsnog */ }
+  },
+
+  async onDisconnect(device) {
+    const idHex = this.byDevice.get(device);
+    const ph = idHex ? this.phones.get(idHex) : null;
+    if (ph) {
+      clearTimeout(ph.watchdog);
+      this.applyMask(idHex, 0);   /* stick los bij wegvallen */
+      ph.status = 'verbroken';
+      this.render();
+    }
+    for (let i = 1; i <= BLE_RECONNECT_MAX; i++) {
+      if (ph) { ph.status = 'herverbinden ' + i + '/' + BLE_RECONNECT_MAX + '…'; this.render(); }
+      try {
+        await new Promise(r => setTimeout(r, 1000 * i));
+        await this.connect(device);
+        return;   /* onNotify zet status weer op 'verbonden' */
+      } catch (e) { /* volgende poging */ }
+    }
+    if (ph) { ph.status = 'verbroken'; this.render(); }
+  },
+
+  render() {
+    const host = $('bleStatus');
+    if (!host) return;
+    host.hidden = this.phones.size === 0;
+    host.textContent = '';
+    for (const ph of this.phones.values()) {
+      const row = document.createElement('div');
+      row.className = 'blerow';
+      const name = document.createElement('span');
+      name.textContent = ph.name + ' →';
+      const btn = document.createElement('button');
+      btn.className = 'bleplayer';
+      btn.textContent = ph.player === null ? 'Geen speler (bezet)' : 'Speler ' + (ph.player + 1);
+      btn.title = ph.player === null
+        ? 'Beide spelers bezet — klik om deze telefoon speler 1 te maken (swap)'
+        : 'Klik om van speler te wisselen';
+      btn.onclick = () => this.togglePlayer(ph.idHex);
+      const st = document.createElement('span');
+      const ok = ph.status === 'verbonden';
+      st.className = 'badge ' + (ok ? 'ok' : (ph.status === 'verbroken' ? 'err' : ''));
+      st.textContent = ph.status;
+      row.append(name, btn, st);
+      host.appendChild(row);
+    }
+  },
+
+  init() {
+    if (!('bluetooth' in navigator)) {
+      /* Web Bluetooth ontbreekt (Firefox/Safari): knop blijft verborgen,
+       * note in de hulptekst zichtbaar maken */
+      $('bleNoSupport').hidden = false;
+      return;
+    }
+    const btn = $('btnBleJoy');
+    btn.hidden = false;
+    btn.onclick = () => this.addPhone();
+  },
+};
 
 /* console-toetsenbord (48 toetsen van de G7000-membraan) */
 const CONSOLE_KEYS = '0123456789+-*/=YNC E ABCDEFGHIJKLMNOPQRSTUVWXYZ.?';
@@ -356,8 +595,120 @@ function bindUi() {
   $('btnFullscreen').onclick = () => $('screen').requestFullscreen && $('screen').requestFullscreen();
 }
 
+/* ---------------- GAMES-catalogus (client-side, geen ROM-hosting) --------
+ * web/games.json = alleen metadata (nr/titel/size/crc32/externe cors-URL).
+ * Klik → browser fetcht de ROM RECHTSTREEKS bij archive.org (/cors/-pad),
+ * CRC32-verificatie tegen de catalogus, daarna IndexedDB-cache ('game:<crc>')
+ * zodat het spel offline blijft werken. Deze site host/proxyt nooit ROM-bytes. */
+const CRC_TABLE = (() => {
+  const t = new Uint32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(bytes) {
+  let c = 0xFFFFFFFF;
+  for (let i = 0; i < bytes.length; i++)
+    c = CRC_TABLE[(c ^ bytes[i]) & 0xFF] ^ (c >>> 8);
+  return ((c ^ 0xFFFFFFFF) >>> 0).toString(16).padStart(8, '0');
+}
+
+const GAMES = { cat: null, loadedCrc: null };
+
+async function gamesFetchRom(url) {
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error('HTTP ' + resp.status);
+  return new Uint8Array(await resp.arrayBuffer());
+}
+
+async function gamesLoad(entry, rowEl) {
+  const status = rowEl.querySelector('.badge');
+  try {
+    let bytes = null;
+    const cached = await idbGet('game:' + entry.crc32);
+    if (cached) bytes = new Uint8Array(cached);
+    if (!bytes) {
+      status.className = 'badge'; status.textContent = 'laden…';
+      bytes = await gamesFetchRom(entry.url);
+      const crc = crc32(bytes);
+      if (crc !== entry.crc32.toLowerCase())
+        throw new Error('CRC-mismatch (' + crc + ' ≠ ' + entry.crc32 + ')');
+      await idbPut('game:' + entry.crc32, bytes.buffer.slice(0));
+    }
+    applyRom(bytes, true);           /* wordt ook de actieve cartridge      */
+    GAMES.loadedCrc = entry.crc32;
+    status.className = 'badge ok'; status.textContent = '✓ geladen';
+    renderGames($('gamesSearch').value);
+  } catch (e) {
+    status.className = 'badge err';
+    status.textContent = 'mislukt: ' + e.message;
+  }
+}
+
+async function gamesRowState(entry) {
+  return (await idbGet('game:' + entry.crc32)) ? '✓' : '';
+}
+
+function renderGames(filter) {
+  const host = $('gamesList');
+  if (!GAMES.cat) return;
+  const f = (filter || '').toLowerCase();
+  host.textContent = '';
+  GAMES.cat.games
+    .filter(g => !f || String(g.nr).includes(f) || g.title.toLowerCase().includes(f))
+    .forEach(g => {
+      const row = document.createElement('div');
+      row.className = 'g';
+      const active = GAMES.loadedCrc === g.crc32;
+      row.innerHTML =
+        '<span class="nr">' + (g.nr != null ? 'nr ' + g.nr : '—') + '</span>' +
+        '<span>' + g.title + (active ? ' ▶' : '') + '</span>' +
+        '<span class="sys">' + g.system + ' · ' + (g.size / 1024) + 'K</span>' +
+        '<span class="badge" style="visibility:hidden">…</span>';
+      const badge = row.lastElementChild;
+      idbGet('game:' + g.crc32).then(hit => {
+        if (hit) { badge.style.visibility = ''; badge.className = 'badge ok'; badge.textContent = '✓'; }
+      });
+      row.onclick = () => { badge.style.visibility = ''; gamesLoad(g, row); };
+      host.appendChild(row);
+    });
+}
+
+async function gamesInit() {
+  try {
+    const resp = await fetch('games.json?v=' + BUILD_V);
+    if (!resp.ok) return;                 /* geen catalogus = sectie blijft weg */
+    GAMES.cat = await resp.json();
+  } catch (e) { return; }
+  $('gamesCard').hidden = false;
+  renderGames('');
+  $('gamesSearch').addEventListener('input', ev => renderGames(ev.target.value));
+
+  /* BIOS-knop: zelfde principe — rechtstreeks van archive.org, met verificatie */
+  const b = GAMES.cat.bios;
+  $('btnBiosUrl').onclick = async () => {
+    const st = $('biosUrlStatus');
+    try {
+      st.textContent = 'BIOS laden…';
+      const bytes = await gamesFetchRom(b.url);
+      if (bytes.length !== b.size) throw new Error('grootte ' + bytes.length + ' ≠ ' + b.size);
+      if (b.crc32 && crc32(bytes) !== b.crc32.toLowerCase())
+        throw new Error('CRC-mismatch');
+      applyBios(bytes, true);
+      st.textContent = '✓ BIOS geladen en lokaal opgeslagen';
+    } catch (e) {
+      st.textContent = 'BIOS laden mislukt: ' + e.message;
+    }
+  };
+}
+
 cfgInit();
 bindUi();
 bindInput();
 buildKbd();
+bleJoy.init();
+gamesInit();
 loadCore();

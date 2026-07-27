@@ -34,6 +34,14 @@ Exporteer/Importeer (.json-roundtrip) en Reset (removeItem + defaults). Thema's 
 canvas (rand+bg), toetsenbord, tekst (2 rollen), accent, achtergrond → 15 kleur-inputs
 op 15 distinct elementen = 100%.
 
+## bleJoy-statusblok (telefoon-joystick) — geen nieuwe tokens
+
+Het BLE-statusblok (`#bleStatus`, per telefoon: naam → speler-badge → verbindings-
+status) hergebruikt bestaande tokens en blijft dus automatisch binnen de telregel:
+`--btn-secondary` (klikbare speler-badge), `--badge-ok`/`--badge-warn`/`--badge-err`
+(status verbonden/stil-herverbinden/verbroken) en `--text-dim` (apparaatnaam).
+Geen hardcoded kleuren toegevoegd; er zijn geen nieuwe config-keys nodig.
+
 ## Typografie
 
 Systeem-stack default; Serif en Mono (retro) als alternatieven. Groottes via

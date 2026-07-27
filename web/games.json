@@ -1,0 +1,607 @@
+{
+ "generated": "2026-07-27",
+ "sources": [
+  {
+   "item": "blobbers-the-europe",
+   "description": "No-Intro 'Magnavox - Odyssey2' set (losse .bin-bestanden, No-Intro-naamgeving)"
+  },
+  {
+   "item": "Videopac_201809",
+   "zip": "ROMS.zip",
+   "description": "No-Intro 'Philips - Videopac+' set (in ROMS.zip)"
+  }
+ ],
+ "bios": {
+  "file": "o2rom.bin",
+  "size": 1024,
+  "md5": "562d5ebf9e030a40d6fabfc2f33139fd",
+  "url": "https://archive.org/cors/bios_batocera/BatoceraV39Bios/bios/o2rom.bin"
+ },
+ "games": [
+  {
+   "nr": 1,
+   "title": "Race / Spin Out / Cryptogram",
+   "file": "Speedway + Spin-out + Crypto-logic (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "4eda4917",
+   "url": "https://archive.org/cors/blobbers-the-europe/Speedway%20%2B%20Spin-out%20%2B%20Crypto-logic%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 1,
+   "title": "Race / Spin Out / Cryptogram+",
+   "file": "Race + Spin-out + Cryptogram (Europe).bin",
+   "size": 8192,
+   "crc32": "ee3ee642",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Race%20%2B%20Spin-out%20%2B%20Cryptogram%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 2,
+   "title": "Pairs / Space Rendezvous / Logic",
+   "file": "Pairs + Space Rendezvous + Logic (Europe).bin",
+   "size": 2048,
+   "crc32": "a69c2c93",
+   "url": "https://archive.org/cors/blobbers-the-europe/Pairs%20%2B%20Space%20Rendezvous%20%2B%20Logic%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 3,
+   "title": "American Football",
+   "file": "Football (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "f9084aa3",
+   "url": "https://archive.org/cors/blobbers-the-europe/Football%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 4,
+   "title": "Air-Sea War / Battle",
+   "file": "Armored Encounter + Sub Chase (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "5ae57a8c",
+   "url": "https://archive.org/cors/blobbers-the-europe/Armored%20Encounter%20%2B%20Sub%20Chase%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 5,
+   "title": "Blackjack",
+   "file": "Las Vegas Blackjack (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "6f66b1f7",
+   "url": "https://archive.org/cors/blobbers-the-europe/Las%20Vegas%20Blackjack%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 6,
+   "title": "Tenpin Bowling / Basketball",
+   "file": "Bowling + Basketball (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "084ee035",
+   "url": "https://archive.org/cors/blobbers-the-europe/Bowling%20%2B%20Basketball%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 7,
+   "title": "Mathematician / Echo",
+   "file": "Math-A-Magic + Echo (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "dc5afaa2",
+   "url": "https://archive.org/cors/blobbers-the-europe/Math-A-Magic%20%2B%20Echo%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 8,
+   "title": "Baseball",
+   "file": "Baseball (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "b07748e7",
+   "url": "https://archive.org/cors/blobbers-the-europe/Baseball%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 9,
+   "title": "Computer Programmer",
+   "file": "Computer Programmer (Europe).bin",
+   "size": 2048,
+   "crc32": "b590cf14",
+   "url": "https://archive.org/cors/blobbers-the-europe/Computer%20Programmer%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 10,
+   "title": "Golf",
+   "file": "Golf (Europe).bin",
+   "size": 2048,
+   "crc32": "14b6cc76",
+   "url": "https://archive.org/cors/blobbers-the-europe/Golf%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 11,
+   "title": "Cosmic Conflict",
+   "file": "Cosmic Conflict (Europe).bin",
+   "size": 2048,
+   "crc32": "f4c2075e",
+   "url": "https://archive.org/cors/blobbers-the-europe/Cosmic%20Conflict%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 11,
+   "title": "Cosmic Conflict+",
+   "file": "Cosmic Conflict (Europe).bin",
+   "size": 8192,
+   "crc32": "a8dbed92",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Cosmic%20Conflict%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 12,
+   "title": "Take the Money and Run!",
+   "file": "Take the Money and Run (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "11ff50ad",
+   "url": "https://archive.org/cors/blobbers-the-europe/Take%20the%20Money%20and%20Run%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 13,
+   "title": "Playschool Maths",
+   "file": "I've Got Your Number (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "1c8368e7",
+   "url": "https://archive.org/cors/blobbers-the-europe/I%27ve%20Got%20Your%20Number%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 14,
+   "title": "Gunfighter",
+   "file": "Gunfighter (Europe).bin",
+   "size": 2048,
+   "crc32": "abe368bf",
+   "url": "https://archive.org/cors/blobbers-the-europe/Gunfighter%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 15,
+   "title": "Samurai",
+   "file": "Samurai (Europe).bin",
+   "size": 2048,
+   "crc32": "7810bad5",
+   "url": "https://archive.org/cors/blobbers-the-europe/Samurai%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 16,
+   "title": "Depth Charge / Marksman",
+   "file": "Depth Charge + Marksman (Europe).bin",
+   "size": 2048,
+   "crc32": "2dcb77f0",
+   "url": "https://archive.org/cors/blobbers-the-europe/Depth%20Charge%20%2B%20Marksman%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 17,
+   "title": "Chinese Logic",
+   "file": "Chinese Logic (Europe).bin",
+   "size": 2048,
+   "crc32": "11edf25b",
+   "url": "https://archive.org/cors/blobbers-the-europe/Chinese%20Logic%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 18,
+   "title": "Laser War",
+   "file": "Laser War (Europe).bin",
+   "size": 2048,
+   "crc32": "17be749b",
+   "url": "https://archive.org/cors/blobbers-the-europe/Laser%20War%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 19,
+   "title": "Catch the Ball / Noughts and Crosses",
+   "file": "Catch the Ball + Noughts and Crosses (Europe).bin",
+   "size": 2048,
+   "crc32": "a57e1724",
+   "url": "https://archive.org/cors/blobbers-the-europe/Catch%20the%20Ball%20%2B%20Noughts%20and%20Crosses%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 20,
+   "title": "Stone Sling",
+   "file": "Stone Sling (Europe).bin",
+   "size": 2048,
+   "crc32": "44d1a8a5",
+   "url": "https://archive.org/cors/blobbers-the-europe/Stone%20Sling%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 20,
+   "title": "Stone Sling+",
+   "file": "Stone Sling (Europe).bin",
+   "size": 8192,
+   "crc32": "2391c2fb",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Stone%20Sling%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 21,
+   "title": "Secret of the Pharaohs",
+   "file": "Secret of the Pharaohs (Europe).bin",
+   "size": 2048,
+   "crc32": "7394e82c",
+   "url": "https://archive.org/cors/blobbers-the-europe/Secret%20of%20the%20Pharaohs%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 22,
+   "title": "Space Monster",
+   "file": "Alien Invaders - Plus (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "71ae8533",
+   "url": "https://archive.org/cors/blobbers-the-europe/Alien%20Invaders%20-%20Plus%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 23,
+   "title": "Las Vegas Gambling",
+   "file": "Casino Slot Machine (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "bb6e7135",
+   "url": "https://archive.org/cors/blobbers-the-europe/Casino%20Slot%20Machine%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 24,
+   "title": "Flipper Game",
+   "file": "Thunderball (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "2c9d1715",
+   "url": "https://archive.org/cors/blobbers-the-europe/Thunderball%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 25,
+   "title": "Skiing",
+   "file": "Alpine Skiing (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "4663c4b6",
+   "url": "https://archive.org/cors/blobbers-the-europe/Alpine%20Skiing%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 26,
+   "title": "Basket Game",
+   "file": "Pachinko (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "239df97d",
+   "url": "https://archive.org/cors/blobbers-the-europe/Pachinko%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 27,
+   "title": "Electronic Table Football",
+   "file": "Electronic Table Soccer (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "89c6de2c",
+   "url": "https://archive.org/cors/blobbers-the-europe/Electronic%20Table%20Soccer%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 28,
+   "title": "Electronic Volleyball",
+   "file": "Volleyball (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "d3b09fec",
+   "url": "https://archive.org/cors/blobbers-the-europe/Volleyball%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 29,
+   "title": "Dam Buster",
+   "file": "Blockout + Breakdown (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "fb83171e",
+   "url": "https://archive.org/cors/blobbers-the-europe/Blockout%20%2B%20Breakdown%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 30,
+   "title": "Battlefield",
+   "file": "War of Nerves (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "58fa6766",
+   "url": "https://archive.org/cors/blobbers-the-europe/War%20of%20Nerves%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 31,
+   "title": "Musician",
+   "file": "Musician (Europe).bin",
+   "size": 4096,
+   "crc32": "afb23f89",
+   "url": "https://archive.org/cors/blobbers-the-europe/Musician%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 32,
+   "title": "A Labyrinth Game / Supermind",
+   "file": "Labyrinth Game, A + Supermind (Europe).bin",
+   "size": 2048,
+   "crc32": "d158eeba",
+   "url": "https://archive.org/cors/blobbers-the-europe/Labyrinth%20Game%2C%20A%20%2B%20Supermind%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 33,
+   "title": "Jumping Acrobats",
+   "file": "Jumping Acrobats (Europe).bin",
+   "size": 2048,
+   "crc32": "6cebab74",
+   "url": "https://archive.org/cors/blobbers-the-europe/Jumping%20Acrobats%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 34,
+   "title": "Satellite Attack",
+   "file": "Satellite Attack (Europe).bin",
+   "size": 2048,
+   "crc32": "395629e1",
+   "url": "https://archive.org/cors/blobbers-the-europe/Satellite%20Attack%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 34,
+   "title": "Satellite Attack+",
+   "file": "Satellite Attack (Europe).bin",
+   "size": 8192,
+   "crc32": "b4735e6b",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Satellite%20Attack%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 35,
+   "title": "Electronic Billiards",
+   "file": "Pocket Billiards (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "24d53e2c",
+   "url": "https://archive.org/cors/blobbers-the-europe/Pocket%20Billiards%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 36,
+   "title": "Electronic Soccer",
+   "file": "Hockey + Soccer (USA, Europe).bin",
+   "size": 2048,
+   "crc32": "39989464",
+   "url": "https://archive.org/cors/blobbers-the-europe/Hockey%20%2B%20Soccer%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 37,
+   "title": "Monkeyshines",
+   "file": "Monkeyshines (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "fee664f3",
+   "url": "https://archive.org/cors/blobbers-the-europe/Monkeyshines%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 38,
+   "title": "Munchkin",
+   "file": "Munchkin (Europe).bin",
+   "size": 4096,
+   "crc32": "4a3e2dc8",
+   "url": "https://archive.org/cors/blobbers-the-europe/Munchkin%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 39,
+   "title": "Freedom Fighters",
+   "file": "Freedom Fighters (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "54736b74",
+   "url": "https://archive.org/cors/blobbers-the-europe/Freedom%20Fighters%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 39,
+   "title": "Freedom Fighters+",
+   "file": "Freedom Fighters (Europe).bin",
+   "size": 8192,
+   "crc32": "1931f5c5",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Freedom%20Fighters%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 40,
+   "title": "4 in 1 Row",
+   "file": "4 in 1 Row (Europe).bin",
+   "size": 4096,
+   "crc32": "3bfef56b",
+   "url": "https://archive.org/cors/blobbers-the-europe/4%20in%201%20Row%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 41,
+   "title": "Conquest of the World",
+   "file": "Conquest of the World (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "afc093fd",
+   "url": "https://archive.org/cors/blobbers-the-europe/Conquest%20of%20the%20World%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 42,
+   "title": "Quest for the Rings",
+   "file": "Quest for the Rings (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "9451be1e",
+   "url": "https://archive.org/cors/blobbers-the-europe/Quest%20for%20the%20Rings%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 43,
+   "title": "Pick Axe Pete",
+   "file": "Pick Axe Pete (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "d62814a3",
+   "url": "https://archive.org/cors/blobbers-the-europe/Pick%20Axe%20Pete%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 43,
+   "title": "Pick Axe Pete+",
+   "file": "Pickaxe Pete (Europe).bin",
+   "size": 8192,
+   "crc32": "b2ffb353",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Pickaxe%20Pete%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 44,
+   "title": "Crazy Chase",
+   "file": "K.C.'s Krazy Chase (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "a6909a8b",
+   "url": "https://archive.org/cors/blobbers-the-europe/K.C.%27s%20Krazy%20Chase%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 45,
+   "title": "Morse",
+   "file": "Morse (Europe).bin",
+   "size": 2048,
+   "crc32": "2122012c",
+   "url": "https://archive.org/cors/blobbers-the-europe/Morse%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 46,
+   "title": "The Great Wallstreet Fortune Hunt",
+   "file": "Great Wall Street Fortune Hunt, The (USA, Europe).bin",
+   "size": 4096,
+   "crc32": "881ceae4",
+   "url": "https://archive.org/cors/blobbers-the-europe/Great%20Wall%20Street%20Fortune%20Hunt%2C%20The%20%28USA%2C%20Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 47,
+   "title": "The Mousing Cat",
+   "file": "Mousing Cat, The (Europe).bin",
+   "size": 4096,
+   "crc32": "f390bfec",
+   "url": "https://archive.org/cors/blobbers-the-europe/Mousing%20Cat%2C%20The%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 49,
+   "title": "Turtles",
+   "file": "Turtles (Europe).bin",
+   "size": 8192,
+   "crc32": "1c750349",
+   "url": "https://archive.org/cors/blobbers-the-europe/Turtles%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 50,
+   "title": "Super Bee",
+   "file": "Super Bee (Europe).bin",
+   "size": 4096,
+   "crc32": "9585d511",
+   "url": "https://archive.org/cors/blobbers-the-europe/Super%20Bee%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 51,
+   "title": "Terrahawks",
+   "file": "Terrahawks (Europe).bin",
+   "size": 8192,
+   "crc32": "764894a1",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Terrahawks%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 52,
+   "title": "Killer Bees",
+   "file": "Killer Bees (Europe).bin",
+   "size": 8192,
+   "crc32": "dee70b33",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Killer%20Bees%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 53,
+   "title": "Nightmare",
+   "file": "Nightmare (Europe).bin",
+   "size": 8192,
+   "crc32": "26b0ff5b",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Nightmare%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 54,
+   "title": "Loony Balloon",
+   "file": "Loony Balloon (Europe).bin",
+   "size": 8192,
+   "crc32": "b932d584",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Loony%20Balloon%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 55,
+   "title": "Neutron Star",
+   "file": "Neutron Star (Europe).bin",
+   "size": 12288,
+   "crc32": "be11157c",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Neutron%20Star%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 56,
+   "title": "Norseman",
+   "file": "Norseman (Europe).bin",
+   "size": 8192,
+   "crc32": "a75c42f8",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Norseman%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 57,
+   "title": "Blobbers",
+   "file": "Blobbers, The (Europe).bin",
+   "size": 8192,
+   "crc32": "9d72d4e9",
+   "url": "https://archive.org/cors/blobbers-the-europe/Blobbers%2C%20The%20%28Europe%29.bin",
+   "system": "videopac"
+  },
+  {
+   "nr": 58,
+   "title": "Air Battle",
+   "file": "Air Battle (Europe).bin",
+   "size": 12288,
+   "crc32": "d94d4109",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Air%20Battle%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 59,
+   "title": "Helicopter Rescue",
+   "file": "Helicopter Rescue (Europe).bin",
+   "size": 16384,
+   "crc32": "c4134df8",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Helicopter%20Rescue%20%28Europe%29.bin",
+   "system": "videopac+"
+  },
+  {
+   "nr": 60,
+   "title": "Trans American Rally",
+   "file": "Trans American Rally (Europe).bin",
+   "size": 16384,
+   "crc32": "0d2d721d",
+   "url": "https://archive.org/cors/Videopac_201809/ROMS.zip/Trans%20American%20Rally%20%28Europe%29.bin",
+   "system": "videopac+"
+  }
+ ]
+}

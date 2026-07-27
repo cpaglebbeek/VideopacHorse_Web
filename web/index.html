@@ -74,6 +74,18 @@ button:disabled { opacity: .45; cursor: default; }
 }
 .filerow { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; margin-bottom: 8px; }
 .filerow label { color: var(--text-dim); }
+.games-list { max-height: 340px; overflow-y: auto; margin-top: 10px; }
+.games-list .g {
+  display: grid; grid-template-columns: 52px 1fr auto auto; gap: 8px;
+  align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+}
+.games-list .g:hover { background: var(--kbd-bg); }
+.games-list .g .nr { color: var(--text-dim); }
+.games-list .g .sys { font-size: .78em; color: var(--text-dim); }
+#gamesSearch {
+  font: inherit; background: var(--kbd-bg); color: var(--text);
+  border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px;
+}
 input[type="file"] { color: var(--text-dim); max-width: 100%; }
 .kbd { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 10px; }
 .kbd button { padding: 7px 0; background: var(--kbd-bg); font-size: .85em; }
@@ -83,6 +95,9 @@ details.config summary { cursor: pointer; font-weight: 600; }
 .cfg-grid input[type="color"] { width: 44px; height: 26px; border: 0; padding: 0; background: none; }
 .cfg-grid input[type="range"] { width: 110px; }
 .cfg-grid select { font: inherit; }
+.blestatus { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 8px; }
+.blerow { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: .9em; }
+.blerow .bleplayer { padding: 3px 10px; font-size: .85em; background: var(--btn-secondary); }
 .help { color: var(--text-dim); font-size: .9em; line-height: 1.5; }
 kbd { background: var(--kbd-bg); border-radius: 4px; padding: 1px 6px; font-size: .85em; }
 footer { color: var(--text-dim); font-size: .85em; margin-top: 18px; }
@@ -108,7 +123,9 @@ a { color: var(--accent); }
     <div class="row" style="justify-content:center; margin-top:8px">
       <button id="btnKbd">⌨ Console-toetsenbord</button>
       <button id="btnFullscreen">⛶ Volledig scherm</button>
+      <button id="btnBleJoy" hidden>📱 Telefoon-joystick</button>
     </div>
+    <div id="bleStatus" class="blestatus" hidden></div>
   </div>
 
   <div class="card">
@@ -122,10 +139,29 @@ a { color: var(--accent); }
       <input type="file" id="fileRom">
       <span id="romBadge" class="badge err">ontbreekt</span>
     </div>
+    <div class="row">
+      <button id="btnBiosUrl">⬇ BIOS laden van archive.org</button>
+      <span id="biosUrlStatus" class="help"></span>
+    </div>
     <p class="help">Je BIOS (<code>o2rom.bin</code>, 1024 bytes — dump van je eigen console) en game-ROMs
     blijven <strong>in je browser</strong> (IndexedDB). Er wordt niets geüpload; deze site heeft geen backend.
     Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
-    console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.</p>
+    console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.
+    Telefoon als joystick: koppel via <strong>📱 Telefoon-joystick</strong> (VideopacHorse
+    Joystick-app op Android; Web Bluetooth).<span id="bleNoSupport" hidden> Je browser
+    ondersteunt geen Web Bluetooth — telefoon-joystick werkt alleen in Chrome/Edge.</span></p>
+  </div>
+
+  <div class="card" id="gamesCard" hidden>
+    <div class="row" style="justify-content:space-between">
+      <strong>🎮 GAMES</strong>
+      <input type="search" id="gamesSearch" placeholder="zoek op nummer of titel…">
+    </div>
+    <div id="gamesList" class="games-list"></div>
+    <p class="help">Catalogus op basis van de Videopac-nummering (videopac.nl) met No-Intro-hashes.
+    Eén klik laadt de ROM <strong>rechtstreeks van archive.org in jouw browser</strong> — deze site
+    host of proxyt geen ROM-bytes; na CRC-verificatie wordt het spel lokaal gecachet (IndexedDB) en
+    is het daarna offline speelbaar. ✓ = lokaal aanwezig.</p>
   </div>
 
   <details class="config card" id="configCard">
@@ -182,7 +218,7 @@ a { color: var(--accent); }
     100% from-scratch engine, geen ROMs op deze server.
   </footer>
 </div>
-<script src="g7000.js?v=0.1.2"></script>
-<script src="app.js?v=0.1.2"></script>
+<script src="g7000.js?v=0.2.0"></script>
+<script src="app.js?v=0.2.0"></script>
 </body>
 </html>

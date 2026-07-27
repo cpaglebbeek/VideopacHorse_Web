@@ -1,13 +1,14 @@
 {
-  "version": "0.1.2",
-  "codename": "Boris",
+  "version": "0.2.0",
+  "codename": "Gust",
   "theme": "Videopac/Odyssey²-pioniers",
-  "released": "2026-07-26",
+  "released": "2026-07-27",
   "lockstep": [
     "Meta_VideopacHorse",
     "VideopacHorse_Core",
     "VideopacHorse_Web",
     "VideopacHorse_Android",
-    "VideopacHorse_SteamDeck"
+    "VideopacHorse_SteamDeck",
+    "VideopacHorse_Joystick"
   ]
 }
