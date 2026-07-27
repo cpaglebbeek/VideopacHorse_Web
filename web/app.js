@@ -689,9 +689,14 @@ function renderGames(filter) {
         '<span class="sys">' + g.system + ' · ' + (g.size / 1024) + 'K</span>' +
         '<span class="badge" style="visibility:hidden">…</span>';
       const badge = row.lastElementChild;
-      idbGet('game:' + g.crc32).then(hit => {
-        if (hit) { badge.style.visibility = ''; badge.className = 'badge ok'; badge.textContent = '✓'; }
-      });
+      /* Alleen de ACTUEEL geladen cartridge krijgt een merkteken. Eerder stond
+       * het vinkje voor "staat in de cache", waardoor elk eerder gespeeld spel
+       * aangevinkt bleef (melding gebruiker 27-07). */
+      if (active) {
+        badge.style.visibility = '';
+        badge.className = 'badge ok';
+        badge.textContent = '▶ actief';
+      }
       row.onclick = () => { badge.style.visibility = ''; gamesLoad(g, row); };
       host.appendChild(row);
     });
