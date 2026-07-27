@@ -34,13 +34,16 @@ Exporteer/Importeer (.json-roundtrip) en Reset (removeItem + defaults). Thema's 
 canvas (rand+bg), toetsenbord, tekst (2 rollen), accent, achtergrond → 15 kleur-inputs
 op 15 distinct elementen = 100%.
 
-## bleJoy-statusblok (telefoon-joystick) — geen nieuwe tokens
+## ctrlPad-statusblok (telefoon-joystick) — geen nieuwe tokens
 
-Het BLE-statusblok (`#bleStatus`, per telefoon: naam → speler-badge → verbindings-
-status) hergebruikt bestaande tokens en blijft dus automatisch binnen de telregel:
-`--btn-secondary` (klikbare speler-badge), `--badge-ok`/`--badge-warn`/`--badge-err`
-(status verbonden/stil-herverbinden/verbroken) en `--text-dim` (apparaatnaam).
-Geen hardcoded kleuren toegevoegd; er zijn geen nieuwe config-keys nodig.
+De klassen `.blestatus` / `.blerow` dragen nog hun oude BLE-naam; het blok zelf is
+sinds v0.4.0-Rusch uitsluitend van `#ctrlStatus` (het BLE-statusblok `#bleStatus`
+is samen met de Web-Bluetooth-route verwijderd). Per gekoppelde controller één regel
+"📱 Speler 1/2 →" (`--text-dim`) met een statusbadge `--badge-ok` (verbonden) of
+`--badge-warn` (stil, geen heartbeat > 3 s); bij een storing op de poll-route zelf
+(401/503/geen netwerk) één regel "📱 Telefoon-joystick →" met `--badge-err`.
+Hergebruikt uitsluitend bestaande tokens: geen extra kleuren, geen extra config-keys —
+de telregel hierboven blijft 15/15.
 
 ## Typografie
 

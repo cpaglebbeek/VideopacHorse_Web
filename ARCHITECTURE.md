@@ -6,7 +6,7 @@
 |---|---|---|
 | Pagina/UI | `web/index.html` | layout, file-pickers (BIOS/ROM), status, hulp |
 | App-glue | `web/app.js` | WASM-module laden, frame-loop (requestAnimationFrame), canvas-blit, WebAudio-pump, input-mapping, IndexedDB-opslag |
-| BLE-joystick | `web/app.js` (module `bleJoy`) | Web Bluetooth GATT-client voor telefoon-joysticks (Android-app VideopacHorse_Joystick): notificaties parsen (9-byte payload), speler-toewijzing (localStorage `videopachorse.blejoy.v1`), statusblok, reconnect + heartbeat-failsafe |
+| Telefoon-joystick (internet) | `web/app.js` (module `ctrlPad`) | Host pollt `ctrl-poll` zolang hij een pairplay-sessie heeft; slot 0/1 → `S.joyCtrl[0/1]`; dubbele failsafe (`age_ms > 3000` én watchdog op de poll-route zelf) ⇒ mask 0; statusregel `#ctrlStatus` |
 | Engine | `web/g7000.js` + `web/g7000.wasm` | build-artefact uit VideopacHorse_Core (`make wasm`) |
 | Build | `build.sh` | core bouwen + artefacten kopiëren |
 
@@ -17,60 +17,155 @@ per rAF-tick `g7k_run_frame` → framebuffer (HEAPU32) → `putImageData`/canvas
 `g7k_audio_read` → WebAudio ringbuffer. Input: keydown/keyup + Gamepad API →
 `g7k_joystick_set`/`g7k_key_set`.
 
-BLE-joystick: telefoon adverteert service `7a0b1000-56e1-4d2a-9f0a-c0de00000001`
-→ `requestDevice` (filter op service) → GATT connect → char `…c0de00000002`
-(NOTIFY+READ) `startNotifications` → payload exact 9 bytes (`bleParsePayload`:
-byte 0-7 apparaat-ID = SHA-256-prefix van ANDROID_ID, byte 8 joystick-bitmask ==
-`G7K_JOY_*`) → speler-mapping → `pushJoy` → `g7k_joystick_set`. De UI-naam is
-altijd `VPH-<laatste 4 hex van ID>`, afgeleid uit de payload (gelijk aan wat de
-app op het telefoonscherm toont); de browser-chooser kan de kale OS-naam tonen —
-platformbeperking van Android-advertising, zie VideopacHorse_Joystick/README.
-Speler-mapping (persistent in localStorage `videopachorse.blejoy.v1`) is
-botsingsvrij: de opgeslagen voorkeur geldt zolang die speler niet door een
-andere actieve telefoon bezet is, anders de eerste vrije speler; zijn beide
-bezet dan wordt een derde telefoon geparkeerd (input genegeerd) tot de
-gebruiker wisselt. Badge-klik wisselt van speler; is de doelspeler bezet, dan
-swappen beide telefoons — nooit twee bronnen op dezelfde speler. Telefoon
-stuurt notify bij elke maskverandering + heartbeat elke 500 ms; >2 s stilte ⇒
-BLE-mask 0 (failsafe). `gattserverdisconnected` ⇒ BLE-mask 0 + max 3
-reconnect-pogingen; de notify-listener wordt max één keer per (door Chromium
-per device gecacht) characteristic-object gezet (`WeakSet`), en device-lookup
-loopt via een `WeakMap` — geen listener- of geheugenlek bij reconnects.
+Telefoon-joystick: geen Bluetooth meer. De telefoon is een gewone HTTPS-client van
+de pairing-API en koppelt met dezelfde 6-tekens sessiecode als 🎭 Samen spelen; de
+host haalt de maskers op met `ctrl-poll`. Zie "Controller-protocol" hieronder.
 
+**Verwijderd in v0.4.0-Rusch:** de Web-Bluetooth-route (`bleJoy`, knop
+`#btnBleJoy`, statusblok `#bleStatus`, service `7a0b1000-…`). De tegenhanger
+bestaat niet meer — `VideopacHorse_Joystick` 0.4.0 heeft `BleJoystickServer.kt`
+en alle Bluetooth-permissies laten vallen — dus die ~200 regels waren onbereikbare
+code die als levend contract gedocumenteerd stond. Bijkomend voordeel: de
+telefoon-joystick werkt nu in élke browser, niet alleen Chromium.
 
 ## pairPlay — 🎭 Samen spelen (v0.3.0)
 
 | Onderdeel | Bestand | Rol |
 |---|---|---|
-| Pairing/signaling-API | `web/api/index.php` | PHP 8.3 + SQLite (`/var/lib/videopac/pairing.db`, WAL, buiten webroot): `pair-create` (6-tekens code A-Z2-9, TTL 10 min, single-use) / `pair-join` / `rtc-signal-send` / `rtc-signal-poll` (poll-and-delete, anti-spam 50/doel, sessie-TTL 4 uur, opportunistische GC). Patroon: iCt_Horse clipboard-api (eigen bouwblok). |
+| Pairing/signaling-API | `web/api/index.php` | PHP 8.3 + SQLite (`/var/lib/videopac/pairing.db`, WAL, buiten webroot): `pair-create` (6-tekens code A-Z2-9) / `pair-join` / `rtc-signal-send` / `rtc-signal-poll` (poll-and-delete, anti-spam 50/doel, sessie-TTL 4 uur, getrottelde GC). Sinds v0.4.0 ook de controller-endpoints (zie hieronder). Patroon: iCt_Horse clipboard-api (eigen bouwblok). |
 | WebRTC-module | `web/pairplay.js` | Host: `canvas.captureStream(50)` + WebAudio-tap (`createMediaStreamDestination` naast de speaker-route) + DataChannel "input"; gast: fullscreen `<video>` + input → DataChannel. STUN-only (Google), ICE-trickle met queue, bye/disconnect → failsafe mask 0. |
-| Input-route | `web/app.js` | Gast-input (WASD/gamepad/BLE) gaat via DataChannel; host ontvangt in `S.joyPeer[1]` en OR-t mee in `pushJoy` (zelfde compositing als bleJoy — bronnen overschrijven elkaar nooit). |
+| Input-route | `web/app.js` | Gast-input (WASD/gamepad) gaat via DataChannel; host ontvangt in `S.joyPeer[1]` en OR-t mee in `pushJoy` (bronnen overschrijven elkaar nooit). |
 
 Bij verbinden (v0.3.1): de host doet automatisch een **power-cycle** en start de emulator,
 zodat beide spelers bij hetzelfde beginscherm beginnen; zolang de sessie staat is **speler 2
-exclusief van de gast** (`guestOwnsPlayer2()` dempt lokale WASD/gamepad-2/BLE-slot-2 op de
+exclusief van de gast** (`guestOwnsPlayer2()` dempt lokale WASD/gamepad-2 op de
 host) en de gast mag zowel WASD als de pijltjes gebruiken.
 
-Beperkingen (bewust, gedocumenteerd): STUN-only (geen TURN — corporate NAT kan falen); gast-invoer is altijd speler 2; er gaat nooit ROM/BIOS over de lijn, alleen beeld/geluid/input.
+**Levensduur van een sessie (v0.4.0-Rusch, gewijzigd).** Een sessie is niet langer
+"pairen of niets": dezelfde code koppelt telefoon-joysticks, dus een sessie **zonder**
+WebRTC-gast is het hoofdscenario. Daarom:
+- er is **geen automatische afbraak** meer. Na 10 minuten zonder gast verandert alleen
+  de melding ("nog geen gast — sessie blijft actief voor telefoon-joysticks");
+- valt de gast weg (`connectionState` failed/disconnected/closed of een `bye`), dan wordt
+  alléén de WebRTC-helft opgeruimd (`closePeer`) en staat de host meteen weer klaar voor
+  een nieuwe gast (`rearmHost`) — de code en de telefoons blijven ongemoeid;
+- de host beëindigt de sessie zelf met **⏹ Stop sessie**. Die knop is actief zodra er een
+  sessie is (`getStatus().active`), niet pas bij een verbonden gast;
+- stoppen roept `pair-end` aan: de serversessie, de controllers en de signalen gaan weg.
+  Zonder dat endpoint bleef de sessie tot 4 uur leven — telefoons bleven input posten die
+  niemand ophaalde en de zichtbare code bleef al die tijd een geldig toegangsbewijs;
+- **herladen van de hostpagina** (F5) herstelt de sessie uit `localStorage`
+  (`pairPlay.restore()`), zodat gekoppelde telefoons blijven werken. Vóór v0.4.0-Rusch werd
+  die sessie wél weggeschreven maar nooit teruggelezen (dode code) en moest de gebruiker
+  opnieuw starten — met een nieuwe code en dus opnieuw koppelen van elke telefoon.
+
+Beperkingen (bewust, gedocumenteerd): STUN-only (geen TURN — corporate NAT kan falen); gast-invoer is altijd speler 2; er gaat nooit ROM/BIOS over de lijn, alleen beeld/geluid/input; een gast die zijn pagina herlaadt kan niet terugkomen op dezelfde sessie (zijn gast-slot blijft geclaimd) — de host stopt en start dan opnieuw.
+
+## Controller-protocol — telefoon-joystick over internet (API v0.4.0, bindend)
+
+Dezelfde 6-tekens sessiecode als 🎭 Samen spelen; een telefoon (`VideopacHorse_Joystick`)
+joint als **controller** en levert 5 bits per speler. Geen WebRTC, geen media — alleen HTTP
+POST/JSON op `https://horsecloud55.ddns.net/videopac/api/`.
+
+| Endpoint | Verzoek | Antwoord | Fouten |
+|---|---|---|---|
+| `ctrl-join` | `{action, code}` | `{ctrl_token (48 hex), slot: 0\|1, expires_at}` | `400` code verlopen/onbekend of vormfout; **`409 {"error":"maximaal 2 joysticks"}`** als beide slots bezet |
+| `ctrl-input` | `{action, token, mask: 0..31}` | `{ok:true}` | `400` ongeldig mask; `401` controller onbekend/verlopen |
+| `ctrl-poll` | `{action, token}` — **host-token** | `{controllers:[{slot, mask, age_ms}]}` | `401` als het token geen host-token van een levende sessie is |
+| `ctrl-leave` | `{action, token}` | `{ok:true}` | — |
+| `pair-join` | `{action, code}` | `{guest_token, expires_at}` | `400` code onbekend/al bezet; **`409 {"error":"speler 2 is bezet door een telefoon-joystick"}`** |
+| `pair-end` | `{action, token}` — **host-token** | `{ok:true}` | `401` als het token geen host-token is |
+
+`mask`-bits: bit0=UP bit1=DOWN bit2=LEFT bit3=RIGHT bit4=FIRE — identiek aan `G7K_JOY_*`
+in `g7000.h`. De app stuurt bij **elke maskverandering**
+plus een **heartbeat elke 500 ms**; de server bewaart alleen het laatste mask per controller.
+
+**Slot-regels (server is de enige autoriteit):**
+1. slot 0 = speler 1, slot 1 = speler 2; `ctrl-join` krijgt altijd het **laagste vrije** slot.
+2. Bezet = bestaande `controllers`-rijen **plus** slot 1 wanneer `sessions.guest_token`
+   gevuld is — een "Samen spelen"-gast *ís* speler 2 (zie `guestOwnsPlayer2()`).
+   Die cap is sinds v0.4.0-Rusch **symmetrisch**: ook `pair-join` telt de controllers mee en
+   weigert met `409` als slot 1 al door een telefoon bezet is (of als beide slots vol zijn).
+   Maximaal 2 spelers per sessie, ongeacht de mix telefoon/gast.
+3. Toewijzing gebeurt binnen `BEGIN IMMEDIATE` (SELECT bezet + INSERT in één schrijfvenster),
+   zodat twee telefoons die tegelijk joinen nooit hetzelfde slot krijgen. Geverifieerd:
+   6 gelijktijdige `ctrl-join`s → precies één slot 0, één slot 1, vier keer `409`.
+4. `ctrl-leave` (of 60 s stilte ⇒ GC, of `pair-end`) geeft het slot vrij; de volgende join
+   krijgt het weer.
+5. `ctrl-join` controleert **read-only** of de code bestaat vóórdat het `BEGIN IMMEDIATE`
+   opent — een willekeurige, geldig gevormde code neemt zo niet eerst het enige schrijfslot
+   van de gedeelde SQLite-db om daarna alsnog `400` te krijgen.
+
+**Dataflow:** telefoon → `ctrl-input` (UPDATE van één rij) → SQLite `controllers` →
+host `ctrl-poll` → `S.joyCtrl[slot]` → `pushJoy(slot)` → OR met `joyKb|joyGp|joyPeer`
+→ `g7k_joystick_set`. Een controller die uit de poll verdwijnt (leave/GC) zet zijn slot
+op 0. De host pollt **alleen** zolang `pairPlay.getStatus().hostToken` bestaat — geen
+verkeer als er geen sessie is.
+
+**Cadans, eerlijk gemeten (was: "@10 Hz").** De timer vuurt 10×/s, maar er loopt nooit meer
+dan één poll tegelijk (`inFlight`), dus de effectieve frequentie is `1/(RTT + 100 ms)`.
+Gemeten tegen HC55: `ctrl-poll`-RTT mediaan 125 ms, p95 190 ms ⇒ **4-5 Hz**, end-to-end
+telefoon→scherm ≈ 250-350 ms. Die gate blijft bewust staan: een wachtrij van polls verhoogt
+de latentie juist. De oude claim "@10 Hz" in code, ARCHITECTURE en CLAUDE.md was dus
+onjuist en is overal vervangen door de gemeten waarde.
+
+**Failsafe in twee lagen** (een joystick die "ingedrukt" blijft hangen is het ergste
+faalgedrag van dit subsysteem):
+1. `age_ms > 3000` ⇒ die bron op 0 (telefoon stil). De marge is verhoogd van 2000 ms: die
+   2 s kwam van de oude BLE-watchdog over een lokale link (~10 ms). Over internet is de
+   cadans 500 ms + RTT; met een mobiele RTT van 300-500 ms komt één gemiste of ge-503'de
+   heartbeat al op 1600-2000 ms — precies op de oude drempel. 3000 ms dekt één gemiste
+   heartbeat plus jitter en blijft ruim onder de 60 s waarop de server het slot opruimt.
+2. Faalt het **pollen zelf** (401, 503, netwerkuitval, onleesbaar antwoord), dan zet een
+   watchdog na dezelfde 3000 ms **alle** controller-maskers op 0 en verschijnt de storing
+   in `#ctrlStatus` ("sessie niet meer geldig", "server bezet", "geen verbinding").
+   Vóór v0.4.0-Rusch werd `r.ok` niet eens gelezen: bij een storing bleef het laatst
+   bekende mask staan zolang die storing duurde. Na een fout geldt bovendien een backoff
+   van 1000 ms, zodat een 401 niet op 10 Hz wordt herhaald.
+
+**Schrijf-hygiëne (BUG-007-les):** de tabel `controllers` staat in het **eenmalige**
+schema-blok van `db()` (geen `CREATE TABLE` per verzoek); `ctrl-input` doet één `UPDATE`
+(de tabel groeit dus niet mee met de invoerfrequentie); `ctrl-poll` schrijft niets; de
+opruiming van stille controllers (>60 s) en wezen zit in de bestaande, op 60 s getrottelde
+`gc()`; **álle** schrijfacties lopen via `withRetry()` — sinds v0.4.0-Rusch ook de vijf
+in `gc()` zelf, die er ondanks deze claim buiten stonden (BUG-008: elke SQLITE_BUSY daar
+was een ongevangen `PDOException` ⇒ HTTP 500). Die GC-schrijfacties gebruiken
+`withRetry(..., $fatal: false)`: huishouding mag nooit het antwoord van een legitiem
+verzoek breken, dus bij aanhoudende druk slaat de GC deze ronde over. Het GC-venster wordt
+bovendien **atomair geclaimd** (`INSERT … ON CONFLICT DO UPDATE … WHERE meta.v <= cutoff`),
+zodat niet elk verzoek dat tegelijk het 60 s-venster passeert het hele schrijfblok draait.
+Gemeten op HC55 na de fix (95 s, 2 controllers @2 Hz + host-poll, 1085 verzoeken, inclusief
+een GC-ronde): **0 × 5xx**, 1083 × `200`, 2 × `503` (0,18%) — de bedoelde begrensde terugval
+uit BUG-007, functioneel onzichtbaar omdat de eerstvolgende heartbeat (500 ms) het mask
+alsnog zet, ruim binnen de failsafe van 3000 ms.
+
+**Restrisico (bewust, gedocumenteerd): de code is een bearer-credential.** Sinds v0.4.0
+wordt `sessions.code` niet meer op NULL gezet (controllers hebben hem nodig), dus wie de
+code ziet (stream, screenshot, meekijken) kan tot het einde van de sessie een joystick-slot
+pakken en dat met heartbeats bezet houden. Er is geen tweede factor en geen rate limiting.
+Geaccepteerd omdat de code alleen 5 bits joystick-invoer geeft (geen data, geen ROM's, geen
+account) en de blootstelling nu begrensd is: ⏹ Stop sessie roept `pair-end` aan en maakt de
+code onmiddellijk ongeldig — vóór v0.4.0-Rusch bleef hij nog tot 4 uur werken. Een host die
+een ongenode joystick ziet verschijnen, stopt en start opnieuw (nieuwe code).
 
 ## Ontwerpbeslissingen
 
 1. **Geen server-side component** — juridisch schoon (ROMs verlaten de browser niet) en HC55-deploy blijft triviaal statisch.
 2. **rAF-gedreven met audio-klok als meester** zodra audio actief is (drift-correctie door frame te skippen/dubbelen), PAL 50Hz vs NTSC 60Hz volgt `g7k_set_region`.
 3. **Zusterpad-build** (`../VideopacHorse_Core`) i.p.v. submodule — conform familie-conventie.
-4. **Telefoon-joystick via Web Bluetooth, bewust géén HID** — het OS mag niets met de
-   input doen; alleen deze pagina consumeert als GATT-client. Beperking: Web Bluetooth
-   is Chromium-only (Chrome/Edge; niet Firefox/Safari/iOS-browsers) — de knop verschijnt
-   alleen na feature-detect op `navigator.bluetooth`, anders staat een note in de hulptekst.
-5. **Input-compositing per speler** — toetsenbord, gamepad en BLE-telefoon houden elk een
-   eigen bronmask (`S.joyKb/joyGp/joyBle`); `pushJoy` OR't ze en geeft alleen échte
-   veranderingen aan de core door. Zo wist de 500 ms-BLE-heartbeat geen toetsenbord-input
-   en vecht een gamepad niet per frame met de telefoon; de watchdog-failsafe zet alleen
-   het BLE-deel op 0.
-6. **Chooser-naam niet oplosbaar op de webkant (geaccepteerd)** — `watchAdvertisements()`
-   (om `VPH-XXXX` uit de scan-response-service-data te lezen vóór het koppelen) is
-   experimenteel/vlag-afhankelijk in Chromium en wordt bewust niet gebruikt. Na verbinden
-   is de identificatie wél altijd eenduidig via het payload-ID.
-7. **Versiebump-conventie** — elke wijziging aan `web/*` bumpt `version.json` + de
+4. **Telefoon-joystick via de sessiecode, bewust géén Bluetooth en géén HID** (v0.4.0) —
+   het OS mag niets met de input doen; alleen deze pagina consumeert hem. De vorige route
+   (Web Bluetooth, GATT-peripheral op de telefoon) is verwijderd: hij werkte alleen in
+   Chromium, vroeg Bluetooth-permissies op de telefoon en had geen tegenhanger meer in
+   `VideopacHorse_Joystick` 0.4.0. Prijs van de nieuwe route: input loopt over internet
+   (~250-350 ms) in plaats van lokaal, en er moet een sessie lopen.
+5. **Input-compositing per speler** — toetsenbord, gamepad, peer (DataChannel) en
+   internet-controller houden elk een eigen bronmask (`S.joyKb/joyGp/joyPeer/joyCtrl`);
+   `pushJoy` OR't ze en geeft alleen échte veranderingen aan de core door. Zo wist de
+   500 ms-heartbeat van een telefoon geen toetsenbord-input en vecht een gamepad niet per
+   frame met de telefoon; een watchdog-failsafe zet alleen het eigen bron-deel op 0. Enige
+   uitzondering: staat er een pairplay-sessie, dan is speler 2 exclusief van de gast
+   (`guestOwnsPlayer2()`) en telt daar alleen `joyPeer[1]`.
+6. **Versiebump-conventie** — elke wijziging aan `web/*` bumpt `version.json` + de
    `?v=`-cache-busters + `BUILD_V` (BUG-002: tussenliggende proxy's cachen immutable);
    `build.sh` synct de busters met `version.json`.

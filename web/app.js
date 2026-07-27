@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.3.1';
+const BUILD_V = '0.4.0';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
@@ -130,13 +130,14 @@ const S = {
   ring: new Float32Array(32768), ringR: 0, ringW: 0,
   frames: 0, lastFpsT: 0,
   joy: [0, 0],                       /* gecombineerd mask zoals aan de core doorgegeven */
-  joyKb: [0, 0], joyGp: [0, 0], joyBle: [0, 0], joyPeer: [0, 0],   /* per bron; pushJoy OR't ze */
+  /* per bron; pushJoy OR't ze — joyCtrl = telefoon-joystick via de API (ctrl-poll) */
+  joyKb: [0, 0], joyGp: [0, 0], joyPeer: [0, 0], joyCtrl: [0, 0],
 };
 
-/* Combineer per speler alle input-bronnen (toetsenbord | gamepad | BLE-telefoon | peer/DataChannel)
- * en geef alleen bij échte verandering door aan de core. Zo wist een
- * BLE-heartbeat geen toetsenbord-input en vecht een gamepad niet per frame
- * met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler. */
+/* Combineer per speler alle input-bronnen (toetsenbord | gamepad | telefoon-joystick |
+ * peer/DataChannel) en geef alleen bij échte verandering door aan de core. Zo wist de
+ * 500 ms-heartbeat van een telefoon geen toetsenbord-input en vecht een gamepad niet per
+ * frame met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler. */
 function guestOwnsPlayer2() {
   /* Zodra een pairplay-sessie staat, is de GAST speler 2: lokale bronnen op
    * slot 2 (WASD, gamepad 2, BLE-telefoon op speler 2) worden gedempt zodat
@@ -148,13 +149,19 @@ function guestOwnsPlayer2() {
 
 function pushJoy(p) {
   if (p === 1 && guestOwnsPlayer2()) {
+    /* Gast bezit speler 2 exclusief: alleen zijn DataChannel-mask telt.
+     * De server geeft slot 1 niet uit zolang sessions.guest_token gevuld is,
+     * dus S.joyCtrl[1] hoort dan 0 te zijn. Eén randgeval blijft over: een
+     * telefoon die slot 1 pakte VÓÓR de gast joinde. Dan wint hier de gast
+     * (zijn slot is exclusief) en wordt de telefoon-invoer genegeerd tot die
+     * telefoon zijn slot vrijgeeft (ctrl-leave of 60 s stilte ⇒ server-GC). */
     const g = S.joyPeer[1] & 0x1f;
     if (g === S.joy[1]) return;
     S.joy[1] = g;
     if (S.api) S.api.joy(S.sys, 1, g);
     return;
   }
-  const m = (S.joyKb[p] | S.joyGp[p] | S.joyBle[p] | S.joyPeer[p]) & 0x1f;
+  const m = (S.joyKb[p] | S.joyGp[p] | S.joyPeer[p] | S.joyCtrl[p]) & 0x1f;
   if (m === S.joy[p]) return;
   S.joy[p] = m;
   if (S.api) S.api.joy(S.sys, p, m);
@@ -255,7 +262,7 @@ function coldStart() {
   S.api.reset(S.sys, 1);
   if (S.bios) applyBios(S.bios, false);
   if (S.rom) applyRom(S.rom, false);
-  S.joyKb = [0, 0]; S.joyGp = [0, 0]; S.joyBle = [0, 0]; S.joyPeer = [0, 0];
+  S.joyKb = [0, 0]; S.joyGp = [0, 0]; S.joyPeer = [0, 0]; S.joyCtrl = [0, 0];
   pushJoy(0); pushJoy(1);
   if (!S.running && S.bios && S.rom) $('btnStart').click();
 }
@@ -370,231 +377,183 @@ function pollGamepads() {
   }
 }
 
-/* ---------------- bleJoy: telefoon als joystick via Web Bluetooth ----------------
- * Protocol (bindend, gedeeld met de Android-app VideopacHorse_Joystick):
- *  - service   7a0b1000-56e1-4d2a-9f0a-c0de00000001
- *  - char "joy" 7a0b1000-56e1-4d2a-9f0a-c0de00000002 (NOTIFY + READ)
- *  - payload exact 9 bytes: byte 0-7 = stabiel apparaat-ID (eerste 8 bytes van
- *    SHA-256 over ANDROID_ID), byte 8 = bitmask bit0=UP bit1=DOWN bit2=LEFT
- *    bit3=RIGHT bit4=FIRE (identiek aan G7K_JOY_* in g7000.h).
- *  - telefoon notify't bij elke maskverandering + heartbeat elke 500 ms;
- *    blijft het hier >2 s stil dan zetten we het BLE-mask op 0 (failsafe:
- *    stick los; toetsenbord/gamepad-input van die speler blijft staan).
- *  - naam in de UI is altijd 'VPH-<laatste 4 hex van het ID>' — gelijk aan wat
- *    de app op het telefoonscherm toont. De browser-chooser kan wel de kale
- *    OS-naam tonen (Android kent geen per-advertentie local name; zie
- *    VideopacHorse_Joystick/README).
- *  - speler-mapping is botsingsvrij: opgeslagen voorkeur geldt zolang die
- *    speler niet door een andere actieve telefoon bezet is; derde telefoon
- *    wordt geparkeerd (geen speler) tot de gebruiker wisselt; wisselen naar
- *    een bezette speler swapt beide telefoons.
- * Web Bluetooth is Chromium-only; de knop verschijnt alleen na feature-detect. */
+/* ---------------- ctrlPad: telefoon-joystick over internet ----------------
+ * Derde inputbron naast toetsenbord/gamepad (en de peer-DataChannel).
+ * Protocol (bindend, gedeeld met VideopacHorse_Joystick en de API v0.4.0):
+ *   ctrl-join  {code}        -> {ctrl_token, slot: 0|1, expires_at}; 3e = HTTP 409
+ *   ctrl-input {token, mask} -> {ok}; mask bit0=UP..bit4=FIRE (== G7K_JOY_*),
+ *                               telefoon stuurt bij elke verandering + 500 ms-heartbeat
+ *   ctrl-poll  {host_token}  -> {controllers:[{slot, mask, age_ms}]}
+ *   ctrl-leave {token}       -> {ok}
+ * Alleen de HOST pollt en alleen zolang hij een pairplay-sessie heeft
+ * (host-token uit pairPlay.getStatus()). Slot 0 = speler 1, slot 1 = speler 2.
+ *
+ * Cadans: de timer vuurt 10×/s, maar er loopt nooit meer dan één verzoek
+ * tegelijk, dus de échte frequentie is 1/(RTT + 100 ms) — over internet gemeten
+ * 4-5 Hz bij een RTT van ~120 ms. Dat is bewust: een wachtrij van polls zou de
+ * latentie juist verhogen. Geen 10 Hz beloven waar het er 4,4 zijn.
+ *
+ * Failsafe (twee lagen, want een joystick die "ingedrukt blijft hangen" is het
+ * ergste faalgedrag dat dit ding heeft):
+ *  1. age_ms > CTRL_STALE_MS ⇒ dat slot op mask 0 (telefoon stil).
+ *  2. gaat het POLLEN zelf stuk (HTTP 401/503, netwerkuitval, onleesbaar
+ *     antwoord), dan zet de watchdog na CTRL_STALE_MS ALLE controller-maskers
+ *     op 0 en verschijnt de storing in de statusregel. Vóór v0.4.0-Rusch werd
+ *     de HTTP-status niet eens gelezen en bleef de laatst bekende mask staan
+ *     zolang de storing duurde. */
 
-const BLE_SERVICE = '7a0b1000-56e1-4d2a-9f0a-c0de00000001';
-const BLE_CHAR_JOY = '7a0b1000-56e1-4d2a-9f0a-c0de00000002';
-const BLE_LS_KEY = 'videopachorse.blejoy.v1';
-const BLE_HB_TIMEOUT = 2000;   /* ms zonder notificatie ⇒ failsafe mask 0 */
-const BLE_RECONNECT_MAX = 3;
+const CTRL_API = 'api/';
+const CTRL_POLL_MS = 100;
+/* 3000 ms i.p.v. de 2000 van de oude BLE-watchdog. Onderbouwing: die 2 s gold
+ * voor een lokale BLE-link (~10 ms). Nu loopt de heartbeat (500 ms) over
+ * internet: één gemiste of ge-503'de heartbeat geeft al 2 × (500 + RTT) — met
+ * een mobiele RTT van 300-500 ms is dat 1600-2000 ms en zou 2000 ms dus midden
+ * in het spel de stick loslaten. 3000 ms dekt één gemiste heartbeat plus
+ * RTT-jitter en blijft ruim onder de 4 s waarop een mens een hangende stick
+ * echt hinderlijk vindt. De server ruimt een stille controller pas na 60 s op,
+ * dus deze marge kost geen slot. */
+const CTRL_STALE_MS = 3000;
+const CTRL_ERR_BACKOFF_MS = 1000;   /* na een mislukte poll niet op 10 Hz blijven rammen */
 
-/* Pure payload-parser (DOM-loos, apart testbaar): Uint8Array(9) → {idHex, mask}
- * of null bij foute lengte. Bits >4 van het mask worden defensief gestript. */
-function bleParsePayload(u8) {
-  if (!u8 || u8.length !== 9) return null;
-  let idHex = '';
-  for (let i = 0; i < 8; i++) idHex += u8[i].toString(16).padStart(2, '0');
-  return { idHex, mask: u8[8] & 0x1f };
-}
+const ctrlPad = {
+  slots: [null, null],   /* per slot {mask, ageMs, stale} of null (niet gekoppeld) */
+  inFlight: false,
+  sig: '',               /* laatst gerenderde statusregel — voorkomt DOM-werk op 10 Hz */
+  lastOkAt: 0,           /* tijdstip van de laatste GESLAAGDE ctrl-poll (watchdog) */
+  errCount: 0,
+  retryAt: 0,
+  linkErr: '',           /* niet-leeg = storing; wordt in de statusregel getoond */
 
-const bleJoy = {
-  phones: new Map(),       /* idHex → {device, idHex, player, status, watchdog, name} */
-  byDevice: new WeakMap(), /* BluetoothDevice → idHex (weak: geen lek bij weggevallen devices) */
-  listened: new WeakSet(), /* characteristics met notify-listener — Chromium cachet het
-                            * characteristic-object per device, dus max 1 listener per object
-                            * ook na n reconnects */
-
-  loadMap() {
-    try { return JSON.parse(localStorage.getItem(BLE_LS_KEY)) || {}; }
-    catch (e) { return {}; }
-  },
-  saveMap(m) { localStorage.setItem(BLE_LS_KEY, JSON.stringify(m)); },
-
-  /* spelers die op dit moment door een ándere actieve telefoon bezet zijn */
-  activePlayers(exceptIdHex) {
-    const taken = new Set();
-    for (const ph of this.phones.values())
-      if (ph.idHex !== exceptIdHex && ph.player !== null) taken.add(ph.player);
-    return taken;
+  /* Host-token, of null als deze pagina geen host is. */
+  hostToken() {
+    if (typeof pairPlay === 'undefined') return null;
+    const st = pairPlay.getStatus();
+    return (st && st.mode === 'host' && st.hostToken) ? st.hostToken : null;
   },
 
-  /* Botsingsvrij: de opgeslagen voorkeur (localStorage) geldt zolang die
-   * speler niet al door een andere actieve telefoon bezet is; anders de
-   * eerste vrije speler; beide bezet ⇒ null (geparkeerd — input wordt
-   * genegeerd tot de gebruiker via de badge wisselt). Zo voeden nooit twee
-   * bronnen stilzwijgend dezelfde speler. */
-  assignPlayer(idHex) {
-    const map = this.loadMap();
-    const taken = this.activePlayers(idHex);
-    if (idHex in map && !taken.has(map[idHex])) return map[idHex];
-    const player = !taken.has(0) ? 0 : (!taken.has(1) ? 1 : null);
-    if (player !== null) { map[idHex] = player; this.saveMap(map); }
-    return player;
-  },
-
-  /* Wisselen van speler; is de doelspeler bezet door een andere telefoon dan
-   * wisselen beide van plaats (swap) — nooit een stil dubbel-bezette speler. */
-  togglePlayer(idHex) {
-    const ph = this.phones.get(idHex);
-    if (!ph) return;
-    const target = ph.player === 0 ? 1 : 0;
-    const map = this.loadMap();
-    for (const other of this.phones.values()) {
-      if (other.idHex !== idHex && other.player === target) {
-        this.applyMask(other.idHex, 0);   /* doelpositie eerst loslaten */
-        other.player = ph.player;         /* kan null zijn: other geparkeerd */
-        if (other.player === null) delete map[other.idHex];
-        else map[other.idHex] = other.player;
-      }
+  /* Alle controller-maskers los + slots vergeten. Idempotent. */
+  releaseAll() {
+    let changed = false;
+    for (let p = 0; p < 2; p++) {
+      if (this.slots[p]) { this.slots[p] = null; changed = true; }
+      if (S.joyCtrl[p] !== 0) { S.joyCtrl[p] = 0; pushJoy(p); changed = true; }
     }
-    this.applyMask(idHex, 0);   /* oude spelerpositie loslaten */
-    ph.player = target;
-    map[idHex] = target;
-    this.saveMap(map);
+    if (changed) this.render();
+  },
+
+  tick() {
+    const token = this.hostToken();
+    if (!token) {
+      if (this.slots[0] || this.slots[1] || this.linkErr) {
+        this.linkErr = '';
+        this.releaseAll();                                 /* sessie weg ⇒ alles los */
+      }
+      this.lastOkAt = 0; this.errCount = 0; this.retryAt = 0;
+      return;
+    }
+    const now = Date.now();
+    if (!this.lastOkAt) this.lastOkAt = now;               /* startpunt watchdog */
+    /* Watchdog: geen geslaagde poll binnen de failsafe-marge ⇒ stick los. */
+    if (now - this.lastOkAt > CTRL_STALE_MS) this.releaseAll();
+    /* Geen overlappende verzoeken: bij een trage verbinding zou 10 Hz anders
+     * een wachtrij opbouwen (en de API onnodig belasten). */
+    if (this.inFlight || now < this.retryAt) return;
+    this.inFlight = true;
+    fetch(CTRL_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ctrl-poll', token }),
+    })
+      .then(r => r.json().catch(() => null).then(j => ({ ok: r.ok, status: r.status, j })))
+      .then(res => {
+        if (!res.ok || !res.j || !Array.isArray(res.j.controllers)) {
+          this.onFail(res.status, (res.j && res.j.error) || '');
+          return;
+        }
+        this.lastOkAt = Date.now();
+        this.errCount = 0;
+        if (this.linkErr) { this.linkErr = ''; this.sig = ''; }
+        this.apply(res.j.controllers);
+      })
+      .catch(() => this.onFail(0, ''))   /* netwerk-hik / offline */
+      .then(() => { this.inFlight = false; });
+  },
+
+  /* Mislukte poll: nooit stilzwijgend. Backoff + (na een tweede fout, of meteen
+   * bij een definitieve 401) een zichtbare melding. De maskers worden door de
+   * watchdog in tick() losgelaten — niet hier, zodat één enkele hik van 200 ms
+   * de besturing niet onderbreekt. */
+  onFail(status, msg) {
+    this.errCount++;
+    this.retryAt = Date.now() + CTRL_ERR_BACKOFF_MS;
+    const txt =
+      status === 401 ? 'sessie niet meer geldig — start een nieuwe sessie'
+        : status === 503 ? 'server bezet — opnieuw proberen…'
+          : status ? ('serverfout ' + status + (msg ? ' (' + msg + ')' : ''))
+            : 'geen verbinding met de server';
+    if ((this.errCount >= 2 || status === 401) && this.linkErr !== txt) {
+      this.linkErr = txt;
+      this.render();
+    }
+  },
+
+  apply(list) {
+    const seen = [false, false];
+    list.forEach(c => {
+      const slot = c.slot | 0;
+      if (slot !== 0 && slot !== 1) return;
+      const ageMs = c.age_ms | 0;
+      const stale = ageMs > CTRL_STALE_MS;
+      const mask = stale ? 0 : ((c.mask | 0) & 0x1f);   /* failsafe */
+      seen[slot] = true;
+      this.slots[slot] = { mask: (c.mask | 0) & 0x1f, ageMs, stale };
+      if (S.joyCtrl[slot] !== mask) { S.joyCtrl[slot] = mask; pushJoy(slot); }
+    });
+    for (let p = 0; p < 2; p++) {
+      if (seen[p] || !this.slots[p]) continue;
+      this.slots[p] = null;                              /* controller weg (ctrl-leave/GC) */
+      if (S.joyCtrl[p] !== 0) { S.joyCtrl[p] = 0; pushJoy(p); }
+    }
     this.render();
   },
 
-  applyMask(idHex, mask) {
-    const ph = this.phones.get(idHex);
-    if (!ph || ph.player === null) return;   /* geparkeerd: input negeren */
-    S.joyBle[ph.player] = mask;
-    pushJoy(ph.player);
-  },
-
-  armWatchdog(idHex) {
-    const ph = this.phones.get(idHex);
-    if (!ph) return;
-    clearTimeout(ph.watchdog);
-    ph.watchdog = setTimeout(() => {
-      this.applyMask(idHex, 0);   /* failsafe: telefoon stil ⇒ stick los */
-      ph.status = 'stil (geen heartbeat)';
-      this.render();
-    }, BLE_HB_TIMEOUT);
-  },
-
-  register(device, idHex) {
-    const ph = {
-      device, idHex,
-      player: this.assignPlayer(idHex),
-      status: 'verbonden',
-      watchdog: 0,
-      /* Altijd de uit het ID afgeleide naam — identiek aan wat de app op het
-       * telefoonscherm toont (DeviceId.shortName). device.name is de kale
-       * OS-naam van de telefoon en dus onbruikbaar om twee toestellen uit
-       * elkaar te houden. */
-      name: 'VPH-' + idHex.slice(12).toUpperCase(),
-    };
-    this.phones.set(idHex, ph);
-    this.byDevice.set(device, idHex);
-    return ph;
-  },
-
-  onNotify(device, dv) {
-    const p = bleParsePayload(new Uint8Array(dv.buffer, dv.byteOffset, dv.byteLength));
-    if (!p) return;
-    let ph = this.phones.get(p.idHex);
-    const isNew = !ph;
-    if (!ph) ph = this.register(device, p.idHex);
-    const statusChanged = ph.status !== 'verbonden';
-    ph.status = 'verbonden';
-    /* BLE-bronmask bijwerken; pushJoy geeft alleen échte veranderingen door
-     * aan de core, dus de 500 ms-heartbeat wist geen toetsenbord-input */
-    this.applyMask(p.idHex, p.mask);
-    this.armWatchdog(p.idHex);
-    if (isNew || statusChanged) this.render();
-  },
-
-  async addPhone() {
-    try {
-      const device = await navigator.bluetooth.requestDevice({
-        filters: [{ services: [BLE_SERVICE] }],
-      });
-      await this.connect(device);
-    } catch (e) { /* chooser geannuleerd of verbinden mislukt — geen UI-fout */ }
-  },
-
-  async connect(device) {
-    const server = await device.gatt.connect();
-    const svc = await server.getPrimaryService(BLE_SERVICE);
-    const ch = await svc.getCharacteristic(BLE_CHAR_JOY);
-    /* max 1 listener per characteristic-object, ook na reconnects */
-    if (!this.listened.has(ch)) {
-      ch.addEventListener('characteristicvaluechanged',
-        ev => this.onNotify(device, ev.target.value));
-      this.listened.add(ch);
-    }
-    await ch.startNotifications();
-    device.addEventListener('gattserverdisconnected',
-      () => this.onDisconnect(device), { once: true });
-    /* char is ook READ: ID meteen ophalen zodat de badge direct verschijnt */
-    try { this.onNotify(device, await ch.readValue()); }
-    catch (e) { /* eerste notify levert het ID alsnog */ }
-  },
-
-  async onDisconnect(device) {
-    const idHex = this.byDevice.get(device);
-    const ph = idHex ? this.phones.get(idHex) : null;
-    if (ph) {
-      clearTimeout(ph.watchdog);
-      this.applyMask(idHex, 0);   /* stick los bij wegvallen */
-      ph.status = 'verbroken';
-      this.render();
-    }
-    for (let i = 1; i <= BLE_RECONNECT_MAX; i++) {
-      if (ph) { ph.status = 'herverbinden ' + i + '/' + BLE_RECONNECT_MAX + '…'; this.render(); }
-      try {
-        await new Promise(r => setTimeout(r, 1000 * i));
-        await this.connect(device);
-        return;   /* onNotify zet status weer op 'verbonden' */
-      } catch (e) { /* volgende poging */ }
-    }
-    if (ph) { ph.status = 'verbroken'; this.render(); }
-  },
-
   render() {
-    const host = $('bleStatus');
+    const host = $('ctrlStatus');
     if (!host) return;
-    host.hidden = this.phones.size === 0;
+    const rows = [];
+    for (let p = 0; p < 2; p++) {
+      if (!this.slots[p]) continue;
+      rows.push({
+        label: '📱 Speler ' + (p + 1) + ' →',
+        txt: this.slots[p].stale ? 'stil (geen heartbeat)' : 'verbonden',
+        kind: this.slots[p].stale ? '' : 'ok',
+      });
+    }
+    /* Storing op de poll-route zelf: altijd tonen, ook als er (daardoor) geen
+     * enkele controller meer in beeld is. */
+    if (this.linkErr) {
+      rows.push({ label: '📱 Telefoon-joystick →', txt: this.linkErr, kind: 'err' });
+    }
+    const sig = rows.map(r => r.label + ':' + r.txt).join('|');
+    if (sig === this.sig) return;      /* niets veranderd ⇒ geen DOM-werk */
+    this.sig = sig;
+    host.hidden = rows.length === 0;
     host.textContent = '';
-    for (const ph of this.phones.values()) {
+    rows.forEach(r => {
       const row = document.createElement('div');
       row.className = 'blerow';
       const name = document.createElement('span');
-      name.textContent = ph.name + ' →';
-      const btn = document.createElement('button');
-      btn.className = 'bleplayer';
-      btn.textContent = ph.player === null ? 'Geen speler (bezet)' : 'Speler ' + (ph.player + 1);
-      btn.title = ph.player === null
-        ? 'Beide spelers bezet — klik om deze telefoon speler 1 te maken (swap)'
-        : 'Klik om van speler te wisselen';
-      btn.onclick = () => this.togglePlayer(ph.idHex);
+      name.textContent = r.label;
       const st = document.createElement('span');
-      const ok = ph.status === 'verbonden';
-      st.className = 'badge ' + (ok ? 'ok' : (ph.status === 'verbroken' ? 'err' : ''));
-      st.textContent = ph.status;
-      row.append(name, btn, st);
+      st.className = 'badge ' + r.kind;
+      st.textContent = r.txt;
+      row.append(name, st);
       host.appendChild(row);
-    }
+    });
   },
 
   init() {
-    if (!('bluetooth' in navigator)) {
-      /* Web Bluetooth ontbreekt (Firefox/Safari): knop blijft verborgen,
-       * note in de hulptekst zichtbaar maken */
-      $('bleNoSupport').hidden = false;
-      return;
-    }
-    const btn = $('btnBleJoy');
-    btn.hidden = false;
-    btn.onclick = () => this.addPhone();
+    setInterval(() => this.tick(), CTRL_POLL_MS);
   },
 };
 
@@ -764,6 +723,6 @@ cfgInit();
 bindUi();
 bindInput();
 buildKbd();
-bleJoy.init();
+ctrlPad.init();
 gamesInit();
 loadCore();

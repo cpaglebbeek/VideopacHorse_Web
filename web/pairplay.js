@@ -1,12 +1,18 @@
 /*
- * pairplay.js — VideopacHorse 🎭 Samen spelen (v0.3.0)
+ * pairplay.js — VideopacHorse 🎭 Samen spelen (v0.4.0)
  *
  * WebRTC P2P multiplayer: twee bezoekers pairen via 6-tekens code.
  * Host draait emulator + streamt canvas (50fps) + WebAudio-tap naar gast.
- * Gast ontvangt stream via WebRTC, input (toetsenbord/gamepad/BLE) gaat via DataChannel
+ * Gast ontvangt stream via WebRTC, input (toetsenbord/gamepad) gaat via DataChannel
  * naar host → speler 2.
  *
- * Storage: localStorage voor sessie-tokens.
+ * De sessie is sinds v0.4.0 méér dan "Samen spelen": dezelfde code koppelt ook
+ * telefoon-joysticks (zie ctrlPad in app.js). Een sessie zonder gast is dus een
+ * volstrekt normale, gewenste situatie en mag NOOIT automatisch worden
+ * afgebroken — alleen de host stopt hem, met ⏹ Stop sessie.
+ *
+ * Storage: localStorage voor sessie-tokens; de host-sessie wordt bij herladen
+ * van de pagina hersteld, zodat een F5 de gekoppelde telefoons niet sloopt.
  * Signaling: api.php poll-en-delete (500ms interval).
  * STUN: Google public (STUN-only, geen TURN).
  */
@@ -24,12 +30,16 @@ const pairPlay = (() => {
 
   const LS_HOST_KEY = 'videopachorse.pairplay.host.v1';
   const LS_GUEST_KEY = 'videopachorse.pairplay.guest.v1';
+  /* Na zoveel wachten verandert alleen de MELDING (niet de sessie): het is dan
+   * duidelijk dat er geen "Samen spelen"-gast meer komt. */
+  const GUEST_WAIT_NOTICE_MS = 10 * 60 * 1000;
 
   let state = {
     mode: null,           // 'host' | 'guest' | null
     hostToken: null,
     guestToken: null,
     code: null,
+    expiresAt: 0,         // epoch-seconden van de serversessie (4 uur)
     pc: null,             // RTCPeerConnection
     localStream: null,    // Host's canvas-stream
     remoteStream: null,   // Guest's received stream
@@ -95,14 +105,6 @@ const pairPlay = (() => {
     state.code = null;
   }
 
-  function loadGuestSession() {
-    try {
-      const stored = JSON.parse(localStorage.getItem(LS_GUEST_KEY));
-      if (stored && stored.guestToken) return stored;
-    } catch (e) { }
-    return null;
-  }
-
   function saveGuestSession(guestToken, expiresAt) {
     const sess = { guestToken, expiresAt, startedAt: Date.now() };
     localStorage.setItem(LS_GUEST_KEY, JSON.stringify(sess));
@@ -118,6 +120,10 @@ const pairPlay = (() => {
 
   function createPeerConnection(isInitiator) {
     if (state.pc) {
+      /* Handlers eerst losknippen: close() vuurt anders zelf een
+       * connectionstatechange 'closed' en dat zou onze eigen opruiming als
+       * "verbinding verbroken" interpreteren. */
+      detachPeer(state.pc);
       try { state.pc.close(); } catch (e) { }
       state.pc = null;
     }
@@ -174,8 +180,16 @@ const pairPlay = (() => {
       if (!state.pc) return;
       const st = state.pc.connectionState;
       if (st === 'failed' || st === 'disconnected' || st === 'closed') {
-        setStatus('verbinding verbroken', 'err');
-        teardown();
+        /* Valt de GAST weg, dan is dat het einde van de WebRTC-verbinding —
+         * niet van de sessie. De host houdt zijn code, zijn telefoon-joysticks
+         * en zijn signaal-poll, en staat meteen weer klaar voor een nieuwe gast.
+         * Alleen de gast zelf stopt hier volledig. */
+        if (state.mode === 'host') {
+          rearmHost('gast verbroken — sessie blijft actief');
+        } else {
+          setStatus('verbinding verbroken', 'err');
+          teardown();
+        }
       } else if (st === 'connected') {
         if (state.mode === 'host') {
           setStatus('gast verbonden — gast is speler 2', 'ok');
@@ -307,7 +321,10 @@ const pairPlay = (() => {
               .catch(e => console.warn('[pairplay] ICE afgewezen:', e.message));
           }
         } else if (sig.type === 'bye') {
-          teardown();
+          /* Gast stopt: voor de host is dat geen einde-sessie (zie
+           * onconnectionstatechange) — de code en de telefoons blijven. */
+          if (state.mode === 'host') rearmHost('gast heeft de sessie verlaten');
+          else teardown();
         }
       } catch (e) {
         console.error('[pairplay] signal handling error:', e);
@@ -370,39 +387,82 @@ const pairPlay = (() => {
     if (video) { video.style.display = 'none'; video.srcObject = null; }
   }
 
-  function teardown() {
-    restoreLocalScreen();
-    stopSignalPoll();
+  /* Alle callbacks van een RTCPeerConnection losknippen, zodat opruimen niet als
+   * een gebeurtenis terugkomt. */
+  function detachPeer(pc) {
+    pc.onicecandidate = null;
+    pc.ontrack = null;
+    pc.onconnectionstatechange = null;
+    pc.ondatachannel = null;
+  }
 
-    // Failsafe: reset peer-input (host: speler 2 los laten)
-    if (state.mode === 'host' && typeof S !== 'undefined') {
-      S.joyPeer[1] = 0;
+  /* Alleen de WebRTC-helft afbreken; sessie, code en telefoon-joysticks blijven. */
+  function closePeer() {
+    restoreLocalScreen();
+    if (typeof S !== 'undefined') {
+      S.joyPeer[1] = 0;                       /* failsafe: speler 2 loslaten */
       if (typeof pushJoy !== 'undefined') pushJoy(1);
     }
-
-    if (state.pc) {
-      try { state.pc.close(); } catch (e) { }
-      state.pc = null;
-    }
-
-    if (state.localStream) {
-      state.localStream.getTracks().forEach(t => t.stop());
-      state.localStream = null;
-    }
-
     if (state.dataChannel) {
       try { state.dataChannel.close(); } catch (e) { }
       state.dataChannel = null;
     }
-
-    state.mode = null;
+    if (state.pc) {
+      detachPeer(state.pc);
+      try { state.pc.close(); } catch (e) { }
+      state.pc = null;
+    }
+    if (state.localStream) {
+      state.localStream.getTracks().forEach(t => t.stop());
+      state.localStream = null;
+    }
     state.offerSent = false;
+    state.readyFired = false;
     state.pendingICE = [];
     state.remoteStream = null;
+  }
+
+  /* Host: peer opnieuw opzetten en verder wachten op (een nieuwe) gast. De
+   * sessie zelf blijft ononderbroken bestaan — telefoon-joysticks merken hier
+   * niets van. */
+  function rearmHost(reason) {
+    if (state.mode !== 'host') return;
+    closePeer();
+    createPeerConnection(false);
+    setupCanvasCapture();
+    setStatus((reason ? reason + ' — ' : '') + 'code: ' + state.code + ' (wacht op gast…)', '');
+    if (el('pairplayCodeCard')) el('pairplayCodeCard').hidden = false;
+  }
+
+  function el(id) { return document.getElementById(id); }
+
+  /* Volledig stoppen. Voor de host betekent dat óók de serversessie opruimen
+   * (pair-end): anders bleef de sessie nog tot 4 uur leven, bleven telefoons
+   * input posten die niemand ophaalt, en bleef de (mogelijk op een stream of
+   * screenshot zichtbare) code een geldig toegangsbewijs. */
+  function teardown() {
+    const wasHost = state.mode === 'host';
+    const hostToken = state.hostToken;
+
+    stopSignalPoll();
+    closePeer();
+
+    if (wasHost && hostToken) {
+      fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'pair-end', token: hostToken }),
+      }).catch(() => { /* best effort: server ruimt na TTL alsnog op */ });
+    }
+
+    state.mode = null;
+    state.code = null;
+    state.expiresAt = 0;
+    clearHostSession();
+    clearGuestSession();
     setStatus('gestopt', '');
 
     // Zet UI terug
-    const el = (id) => document.getElementById(id);
     if (el('pairplayCodeCard')) el('pairplayCodeCard').hidden = true;
     if (el('pairplayRemoteVideo')) el('pairplayRemoteVideo').style.display = 'none';
     if (el('pairplayBtnStop')) el('pairplayBtnStop').disabled = true;
@@ -426,6 +486,7 @@ const pairPlay = (() => {
         state.mode = 'host';
         state.hostToken = hostToken;
         state.code = code;
+        state.expiresAt = expiresAt | 0;
         saveHostSession(code, hostToken, expiresAt);
 
         /* Rolverdeling (BUG-004): de GAST is offerer (vraagt media recvonly aan
@@ -439,26 +500,28 @@ const pairPlay = (() => {
         $('pairplayCode').textContent = code;
         $('pairplayCodeCard').hidden = false;
 
-        // Polling voor gast-join
-        const checkJoin = setInterval(async () => {
-          try {
-            // Simpele check: fetch sessie-status (zou via API moeten, maar API geeft geen join-event)
-            // Interim: vertrouw op RTCPeerConnection.connectionStateChange
-            if (state.pc && state.pc.connectionState === 'connected') {
-              clearInterval(checkJoin);
-              setStatus('gast verbonden — gast is speler 2', 'ok');
-            }
-          } catch (e) { }
-        }, 2000);
-
-        // Timeout na 10 min
-        setTimeout(() => {
-          clearInterval(checkJoin);
-          if (state.mode === 'host' && state.pc && state.pc.connectionState !== 'connected') {
-            setStatus('sessie verlopen (geen gast)', 'err');
-            teardown();
+        /* BUG-010 (v0.4.0-Rusch): hier stond een setTimeout van 10 minuten die
+         * teardown() deed als er dan nog geen WebRTC-gast verbonden was. Sinds
+         * v0.4.0 is "geen gast" het HOOFDscenario — een telefoon als joystick
+         * gebruikt dezelfde sessie zonder ooit een gast te worden. Die timer
+         * sloopte dus na exact 10 minuten elke telefoon-joystick, zonder enig
+         * signaal aan de telefoon (die 4 uur lang 200 OK bleef krijgen).
+         * Nu verloopt alleen de MELDING "wacht op gast"; de sessie blijft leven
+         * tot de host zelf op ⏹ Stop sessie drukt (of tot de server-TTL). */
+        const waitStartedAt = Date.now();
+        const checkJoin = setInterval(() => {
+          if (state.mode !== 'host') { clearInterval(checkJoin); return; }
+          if (state.pc && state.pc.connectionState === 'connected') {
+            clearInterval(checkJoin);
+            setStatus('gast verbonden — gast is speler 2', 'ok');
+            return;
           }
-        }, 10 * 60 * 1000);
+          if (Date.now() - waitStartedAt > GUEST_WAIT_NOTICE_MS) {
+            clearInterval(checkJoin);
+            setStatus('code: ' + state.code +
+              ' (nog geen gast — sessie blijft actief voor telefoon-joysticks)', '');
+          }
+        }, 2000);
 
         startSignalPoll();
 
@@ -490,6 +553,7 @@ const pairPlay = (() => {
         state.mode = 'guest';
         state.guestToken = guestToken;
         state.hostToken = null;
+        state.expiresAt = expiresAt | 0;
         saveGuestSession(guestToken, expiresAt);
 
         // Setup RTC — gast is offerer en maakt het DataChannel (BUG-004)
@@ -521,6 +585,36 @@ const pairPlay = (() => {
       }
     },
 
+    /* Host-sessie hervatten na een herlaad van de pagina (F5, tab-herstel).
+     * Zonder dit verloor de host zijn token en stopte ctrl-poll, terwijl de
+     * telefoons met een geldig token 4 uur lang bleven doorsturen — de
+     * gebruiker moest dan "Start sessie" drukken, kreeg een NIEUWE code en
+     * moest alle telefoons opnieuw koppelen. De opgeslagen sessie werd wél
+     * weggeschreven maar nooit teruggelezen (dode code). */
+    restore: function() {
+      if (state.mode) return false;
+      const sess = loadHostSession();
+      /* Marge van 60 s: een sessie die zo meteen verloopt is niets waard. */
+      if (!sess || !sess.code || !((sess.expiresAt | 0) > (Date.now() / 1000) + 60)) {
+        clearHostSession();
+        return false;
+      }
+      state.mode = 'host';
+      state.hostToken = sess.hostToken;
+      state.code = sess.code;
+      state.expiresAt = sess.expiresAt | 0;
+
+      createPeerConnection(false);
+      setupCanvasCapture();
+      startSignalPoll();
+
+      $('pairplayCode').textContent = sess.code;
+      $('pairplayCodeCard').hidden = false;
+      setStatus('sessie hervat — code: ' + sess.code +
+        ' (telefoon-joysticks blijven gekoppeld)', 'ok');
+      return true;
+    },
+
     // Gast stuurt input naar host
     sendGuestInput: function(mask) {
       if (state.mode === 'guest') {
@@ -534,7 +628,16 @@ const pairPlay = (() => {
       return {
         mode: state.mode,
         code: state.code,
+        /* actief = er is een sessie (met of zonder WebRTC-gast). De Stop-knop
+         * hangt hieraan, niet aan `connected`: een sessie met alléén
+         * telefoon-joysticks moet je ook kunnen stoppen. */
+        active: state.mode !== null,
         connected: state.pc ? state.pc.connectionState === 'connected' : false,
+        /* Host-token alleen als we ook echt host zijn — app.js heeft het nodig
+         * om ctrl-poll te doen (telefoon-joysticks over internet). Een gast
+         * krijgt hier nooit een host-token te zien (BUG-003b: een token is een
+         * identiteit). */
+        hostToken: state.mode === 'host' ? state.hostToken : null,
       };
     }
   };

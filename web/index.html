@@ -97,7 +97,6 @@ details.config summary { cursor: pointer; font-weight: 600; }
 .cfg-grid select { font: inherit; }
 .blestatus { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 8px; }
 .blerow { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: .9em; }
-.blerow .bleplayer { padding: 3px 10px; font-size: .85em; background: var(--btn-secondary); }
 .help { color: var(--text-dim); font-size: .9em; line-height: 1.5; }
 kbd { background: var(--kbd-bg); border-radius: 4px; padding: 1px 6px; font-size: .85em; }
 footer { color: var(--text-dim); font-size: .85em; margin-top: 18px; }
@@ -123,9 +122,9 @@ a { color: var(--accent); }
     <div class="row" style="justify-content:center; margin-top:8px">
       <button id="btnKbd">⌨ Console-toetsenbord</button>
       <button id="btnFullscreen">⛶ Volledig scherm</button>
-      <button id="btnBleJoy" hidden>📱 Telefoon-joystick</button>
     </div>
-    <div id="bleStatus" class="blestatus" hidden></div>
+    <!-- telefoon-joysticks: gekoppeld met de sessiecode uit 🎭 Samen spelen (ctrl-poll) -->
+    <div id="ctrlStatus" class="blestatus" hidden></div>
   </div>
 
   <div class="card">
@@ -147,9 +146,10 @@ a { color: var(--accent); }
     blijven <strong>in je browser</strong> (IndexedDB). Er wordt niets geüpload; deze site heeft geen backend.
     Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
     console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.
-    Telefoon als joystick: koppel via <strong>📱 Telefoon-joystick</strong> (VideopacHorse
-    Joystick-app op Android; Web Bluetooth).<span id="bleNoSupport" hidden> Je browser
-    ondersteunt geen Web Bluetooth — telefoon-joystick werkt alleen in Chrome/Edge.</span></p>
+    <strong>Telefoon als joystick:</strong> start hieronder een sessie, open de app
+    <em>VideopacHorse Joystick</em> op je Android-telefoon en tik de 6-tekens code over.
+    Geen Bluetooth, geen koppelen in Android — alleen die code (max 2 telefoons per sessie,
+    werkt in elke browser).</p>
   </div>
 
   <div class="card">
@@ -160,7 +160,8 @@ a { color: var(--accent); }
     <div id="pairplayCodeCard" hidden style="margin: 12px 0; padding: 12px; background: var(--kbd-bg); border-radius: 6px; text-align: center;">
       <p class="help">Deel deze code met je medespeler:</p>
       <p style="font-size: 2em; letter-spacing: 4px; font-weight: 600; margin: 8px 0;" id="pairplayCode">------</p>
-      <p class="help">(Code is 10 minuten geldig)</p>
+      <p class="help">(Blijft geldig zolang de sessie loopt — dezelfde code koppelt de
+      telefoon-joystick-app. Stop je de sessie, dan vervalt de code meteen.)</p>
     </div>
     <div class="row">
       <button id="pairplayBtnStart" class="primary">🎮 Start sessie (host)</button>
@@ -171,9 +172,11 @@ a { color: var(--accent); }
     </div>
     <video id="pairplayRemoteVideo" style="display:none; width:100%; max-width:100%; margin-top:12px; border-radius:6px; border:1px solid var(--panel-border);"></video>
     <p class="help">Start een sessie als host (je draait de emulator en streamt het scherm) of join als gast
-    (je ziet de stream van de host en stuurt je input als speler 2). Code-uitwisseling: beide kanten moeten
-    op dezelfde netwerk zitten (LAN/internet — WebRTC verbinding is P2P, server ziet alleen handshake-metadata).
-    Audio: gast hoort de host-PC-output (via WebRTC).</p>
+    (je ziet de stream van de host en stuurt je input als speler 2). De WebRTC-verbinding is P2P over
+    LAN of internet; de server ziet alleen handshake-metadata. Audio: gast hoort de host-PC-output.
+    Dezelfde code koppelt <strong>telefoon-joysticks</strong> (Android-app) — samen maximaal 2 spelers:
+    een gast <em>is</em> speler 2, dus dan is er nog plek voor één telefoon op speler 1.
+    De sessie blijft actief tot je op ⏹ Stop sessie drukt, ook zonder gast.</p>
   </div>
 
   <div class="card" id="gamesCard" hidden>
@@ -242,9 +245,9 @@ a { color: var(--accent); }
     100% from-scratch engine, geen ROMs op deze server.
   </footer>
 </div>
-<script src="g7000.js?v=0.3.1"></script>
-<script src="pairplay.js?v=0.3.1"></script>
-<script src="app.js?v=0.3.1"></script>
+<script src="g7000.js?v=0.4.0"></script>
+<script src="pairplay.js?v=0.4.0"></script>
+<script src="app.js?v=0.4.0"></script>
 <script>
 /* UI wiring voor 🎭 Samen spelen */
 (function(){
@@ -264,11 +267,18 @@ a { color: var(--accent); }
     ev.target.value = ev.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '');
   });
 
+  /* Host-sessie hervatten na een herlaad: telefoon-joysticks blijven gekoppeld. */
+  pairPlay.restore();
+
   // Monitor pairplay status
   setInterval(() => {
     const status = pairPlay.getStatus();
     const btn = el('pairplayBtnStop');
-    btn.disabled = !status.connected;
+    /* Stoppen moet kunnen zodra er een sessie is — niet pas als er een
+     * WebRTC-gast verbonden is. Een sessie met alleen telefoon-joysticks
+     * (het hoofdscenario van v0.4.0) is óók een sessie, en ⏹ Stop sessie is
+     * de enige manier om hem te beëindigen. */
+    btn.disabled = !status.active;
     if (status.connected && el('pairplayRemoteVideo').style.display === 'none') {
       el('pairplayRemoteVideo').style.display = 'block';
     }
