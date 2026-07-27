@@ -135,7 +135,7 @@ function gc(): void {
      * Nu hoogstens eens per 60 s, bijgehouden in een meta-tabel. */
     $st = db()->prepare('SELECT v FROM meta WHERE k=?');
     $st->execute(['last_gc']);
-    $last = (int)($st->fetchColumn() ?: 0);
+    $last = (int)(fetchVal($st) ?: 0);
     if ($now - $last < 60) {
         return;
     }
@@ -229,7 +229,7 @@ function newCode(): string {
          * verlopen-maar-nog-niet-opgeruimde rij houdt de UNIQUE-index bezet. */
         $st = db()->prepare('SELECT 1 FROM sessions WHERE code=?');
         $st->execute([$code]);
-        if (!$st->fetchColumn()) {
+        if (!fetchVal($st)) {
             return $code;
         }
     }
@@ -259,9 +259,25 @@ function inputJson(): array {
  *
  * $fatal=false: geef null terug in plaats van te falen. Alleen voor huishouding
  * (gc()) — het antwoord van de gebruiker mag daar niet van afhangen. */
+/* BUG-011: PDO-SQLite houdt een niet-uitgelezen SELECT-cursor open; een
+ * schrijfactie op DEZELFDE verbinding krijgt dan "database is locked", en geen
+ * enkele retry helpt want de cursor blijft het hele verzoek open. Alle
+ * enkelvoudige leesacties lopen daarom via deze helpers, die de cursor sluiten. */
+function fetchRow(PDOStatement $st) {
+    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $st->closeCursor();
+    return $row;
+}
+
+function fetchVal(PDOStatement $st) {
+    $v = $st->fetchColumn();
+    $st->closeCursor();
+    return $v;
+}
+
 function withRetry(callable $fn, bool $fatal = true) {
     $last = null;
-    for ($i = 0; $i < 25; $i++) {
+    for ($i = 0; $i < 80; $i++) {
         try {
             return $fn();
         } catch (PDOException $e) {
@@ -271,7 +287,10 @@ function withRetry(callable $fn, bool $fatal = true) {
                 throw $e;
             }
             $last = $e;
-            usleep(40000);
+            if ($i === 10) {
+                error_log('[videopac-api] SQLITE_BUSY aanhoudend: ' . substr($msg, 0, 120));
+            }
+            usleep(50000);
         }
     }
     if (!$fatal) return null;
@@ -286,7 +305,7 @@ function requireSessionByToken(?string $token): array {
     /* token = host_token (= sessions.token) OF guest_token */
     $st = db()->prepare('SELECT * FROM sessions WHERE (token=? OR guest_token=?) AND expires_at>?');
     $st->execute([$token, $token, time()]);
-    $row = $st->fetch(PDO::FETCH_ASSOC);
+    $row = fetchRow($st);
     if (!$row) {
         fail('sessie verlopen of onbekend', 401);
     }
@@ -329,7 +348,7 @@ case 'pair-join': {
     /* Goedkope voorcontrole (read-only) — pas daarna het schrijfslot nemen. */
     $st = db()->prepare('SELECT token, expires_at FROM sessions WHERE code=? AND expires_at>?');
     $st->execute([$code, time()]);
-    $pre = $st->fetch(PDO::FETCH_ASSOC);
+    $pre = fetchRow($st);
     if (!$pre) {
         fail('code verlopen of onbekend');
     }
@@ -351,7 +370,7 @@ case 'pair-join': {
         try {
             $st = db()->prepare('SELECT token, guest_token, expires_at FROM sessions WHERE code=? AND expires_at>?');
             $st->execute([$code, time()]);
-            $sess = $st->fetch(PDO::FETCH_ASSOC);
+            $sess = fetchRow($st);
             if (!$sess) {
                 db()->exec('ROLLBACK');
                 return ['err' => ['code verlopen of onbekend', 400]];
@@ -402,7 +421,7 @@ case 'pair-end': {
     $token = requireTokenShape($in['token'] ?? '');
     $st = db()->prepare('SELECT token FROM sessions WHERE token=?');
     $st->execute([$token]);
-    if (!$st->fetchColumn()) {
+    if (!fetchVal($st)) {
         fail('alleen de host mag de sessie stoppen', 401);
     }
     withRetry(function () use ($token) {
@@ -442,7 +461,7 @@ case 'rtc-signal-send': {
     // Anti-spam: check pending count
     $st = db()->prepare('SELECT COUNT(*) FROM rtc_signals WHERE target_token=?');
     $st->execute([$targetToken]);
-    $pending = (int)$st->fetchColumn();
+    $pending = (int)fetchVal($st);
     if ($pending >= RTC_QUEUE_MAX) {
         fail('signaal-wachtrij vol (peer traag)', 429);
     }
@@ -475,34 +494,31 @@ case 'rtc-signal-poll': {
      * Nu eerst read-only kijken; alleen bij werk het schrijfslot nemen. */
     $chk = db()->prepare('SELECT COUNT(*) FROM rtc_signals WHERE target_token=?');
     $chk->execute([$token]);
-    if ((int)$chk->fetchColumn() === 0) {
+    if ((int)fetchVal($chk) === 0) {
         ok(['signals' => []]);
     }
 
-    $result = withRetry(function () use ($token) {
-    db()->exec('BEGIN IMMEDIATE');
-    try {
-        $st = db()->prepare('SELECT id, type, payload FROM rtc_signals WHERE target_token=? ORDER BY id ASC');
-        $st->execute([$token]);
-        $signals = $st->fetchAll(PDO::FETCH_ASSOC);
+    /* BUG-010: geen expliciete transactie meer in het hete pad. De SELECT is
+     * read-only (geen slot) en de DELETE op exact de gelezen id's is als los
+     * statement al atomair — alleen de eigen peer pollt dit target, dus er is
+     * niets te serialiseren. Zo verdwijnt BEGIN IMMEDIATE uit de 2 Hz-lus. */
+    $st = db()->prepare('SELECT id, type, payload FROM rtc_signals WHERE target_token=? ORDER BY id ASC');
+    $st->execute([$token]);
+    $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 
-        $result = [];
-        $maxId = 0;
-        foreach ($signals as $sig) {
-            $result[] = ['type' => $sig['type'], 'payload' => $sig['payload']];
-            $maxId = max($maxId, (int)$sig['id']);
-        }
-        if ($maxId > 0) {
+    $result = [];
+    $maxId = 0;
+    foreach ($rows as $sig) {
+        $result[] = ['type' => $sig['type'], 'payload' => $sig['payload']];
+        $maxId = max($maxId, (int)$sig['id']);
+    }
+    if ($maxId > 0) {
+        withRetry(function () use ($token, $maxId) {
             db()->prepare('DELETE FROM rtc_signals WHERE target_token=? AND id<=?')
                 ->execute([$token, $maxId]);
-        }
-        db()->exec('COMMIT');
-        return $result;
-    } catch (Throwable $e) {
-        try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { }
-        throw $e;
+            return true;
+        });
     }
-    });
 
     ok(['signals' => $result]);
 }
@@ -520,7 +536,7 @@ case 'ctrl-join': {
      * gedeelde SQLite-db, om vervolgens 400 te geven. */
     $st = db()->prepare('SELECT 1 FROM sessions WHERE code=? AND expires_at>?');
     $st->execute([$code, time()]);
-    if (!$st->fetchColumn()) {
+    if (!fetchVal($st)) {
         fail('code verlopen of onbekend');
     }
 
@@ -538,7 +554,7 @@ case 'ctrl-join': {
         try {
             $st = db()->prepare('SELECT token, guest_token, expires_at FROM sessions WHERE code=? AND expires_at>?');
             $st->execute([$code, time()]);
-            $sess = $st->fetch(PDO::FETCH_ASSOC);
+            $sess = fetchRow($st);
             if (!$sess) {
                 db()->exec('ROLLBACK');
                 return ['err' => ['code verlopen of onbekend', 400]];
@@ -604,7 +620,7 @@ case 'ctrl-input': {
                          JOIN sessions s ON s.token = c.session_token
                          WHERE c.token=? AND s.expires_at>?');
     $st->execute([$token, time()]);
-    if ($st->fetchColumn() === false) {
+    if (fetchVal($st) === false) {
         fail('controller onbekend of verlopen', 401);
     }
 
@@ -625,7 +641,7 @@ case 'ctrl-poll': {
     $token = requireTokenShape($in['token'] ?? '');
     $st = db()->prepare('SELECT token FROM sessions WHERE token=? AND expires_at>?');
     $st->execute([$token, time()]);
-    if (!$st->fetchColumn()) {
+    if (!fetchVal($st)) {
         fail('alleen de host mag pollen', 401);
     }
 

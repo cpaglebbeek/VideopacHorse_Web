@@ -47,6 +47,8 @@ const pairPlay = (() => {
     pollTimer: null,
     offerSent: false,
     readyFired: false,
+    graceTimer: null,
+    iceRestarted: false,
     pendingICE: [],
     status: 'stopped',
   };
@@ -118,6 +120,50 @@ const pairPlay = (() => {
 
   // ----- WebRTC lifecycle -----
 
+  /* Herstelmechanisme bij tijdelijke haperingen (BUG-010). */
+  function clearGrace() {
+    if (state.graceTimer) { clearTimeout(state.graceTimer); state.graceTimer = null; }
+  }
+
+  function scheduleGrace() {
+    if (state.graceTimer) return;
+    state.graceTimer = setTimeout(() => {
+      state.graceTimer = null;
+      if (!state.pc) return;
+      const st = state.pc.connectionState;
+      if (st === 'connected') return;                 /* vanzelf hersteld */
+      if (state.mode === 'host') {
+        rearmHost('gast verbroken — sessie blijft actief');
+      } else if (!state.iceRestarted) {
+        tryIceRestart();
+      } else {
+        setStatus('verbinding verbroken', 'err');
+        teardown();
+      }
+    }, 8000);
+  }
+
+  /* Gast is de offerer: opnieuw onderhandelen met iceRestart i.p.v. opgeven. */
+  function tryIceRestart() {
+    if (state.mode !== 'guest' || !state.pc || state.iceRestarted) return;
+    state.iceRestarted = true;
+    setStatus('verbinding herstellen…', 'warn');
+    state.pc.createOffer({ iceRestart: true })
+      .then(o => state.pc.setLocalDescription(o))
+      .then(() => apiCall('rtc-signal-send', {
+        type: 'offer', payload: state.pc.localDescription.sdp
+      }))
+      .then(() => {
+        setTimeout(() => {
+          if (state.pc && state.pc.connectionState !== 'connected') {
+            setStatus('verbinding verbroken', 'err');
+            teardown();
+          }
+        }, 10000);
+      })
+      .catch(e => { setStatus('herstel mislukt: ' + e.message, 'err'); teardown(); });
+  }
+
   function createPeerConnection(isInitiator) {
     if (state.pc) {
       /* Handlers eerst losknippen: close() vuurt anders zelf een
@@ -179,18 +225,27 @@ const pairPlay = (() => {
     state.pc.onconnectionstatechange = () => {
       if (!state.pc) return;
       const st = state.pc.connectionState;
-      if (st === 'failed' || st === 'disconnected' || st === 'closed') {
-        /* Valt de GAST weg, dan is dat het einde van de WebRTC-verbinding —
-         * niet van de sessie. De host houdt zijn code, zijn telefoon-joysticks
-         * en zijn signaal-poll, en staat meteen weer klaar voor een nieuwe gast.
-         * Alleen de gast zelf stopt hier volledig. */
+      if (st === 'disconnected') {
+        /* BUG-010: 'disconnected' is TIJDELIJK. Bij het starten van een spel
+         * piekt de CPU (emulator 50 Hz + video-encoder + audio) en meldt WebRTC
+         * even 'disconnected'; dat werd hiervoor als definitief einde behandeld,
+         * waardoor de gast afbrak en zijn eigen (zwarte) canvas terugkreeg.
+         * Nu: herstelperiode van 8 s, beeld blijft staan. */
+        setStatus('verbinding hapert — even geduld…', 'warn');
+        scheduleGrace();
+      } else if (st === 'failed' || st === 'closed') {
+        clearGrace();
         if (state.mode === 'host') {
           rearmHost('gast verbroken — sessie blijft actief');
+        } else if (st === 'failed' && !state.iceRestarted) {
+          tryIceRestart();
         } else {
           setStatus('verbinding verbroken', 'err');
           teardown();
         }
       } else if (st === 'connected') {
+        clearGrace();
+        state.iceRestarted = false;
         if (state.mode === 'host') {
           setStatus('gast verbonden — gast is speler 2', 'ok');
           /* Schone start voor beide spelers zodra de sessie staat. */
@@ -296,13 +351,13 @@ const pairPlay = (() => {
                 .catch(e => console.warn('[pairplay] ICE (queue) afgewezen:', e.message)));
             })
             .then(() => {
-              if (sig.type === 'offer' && !state.offerSent) {
+              if (sig.type === 'offer' && state.mode === 'host') {
                 // Host ontvangt offer van guest → send answer
                 return state.pc.createAnswer().then(ans => state.pc.setLocalDescription(ans));
               }
             })
             .then(() => {
-              if (sig.type === 'offer' && !state.offerSent) {
+              if (sig.type === 'offer' && state.mode === 'host') {
                 apiCall('rtc-signal-send', {
                   type: 'answer',
                   payload: state.pc.localDescription.sdp

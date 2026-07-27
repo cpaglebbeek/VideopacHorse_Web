@@ -188,12 +188,38 @@ Conventie: kleurcode (Groen fysiek / Geel logisch / Rood conceptueel) + RCA op d
   breuk binnen 1 s.
 - **Preventie:** in poll-protocollen altijd read-first; schrijfslot pas als er werk is.
 
+## BUG-010/011 — Zwart beeld bij de gast, sessie effectief weg (Geel, closed 2026-07-27)
+
+- **Symptoom (melding gebruiker, 2×):** vlak na het kiezen van een spel zwart beeld bij
+  de gast en de sessie feitelijk verdwenen.
+- **RCA — twee onafhankelijke oorzaken, beide gefixt:**
+  1. **Tijdelijke hapering werd definitief einde.** `connectionState === 'disconnected'`
+     werd gelijkgesteld aan `failed`/`closed` en gaf meteen `teardown()`. Bij het starten
+     van een spel piekt de CPU (emulatie 50 Hz + video-encoder + audio) en meldt WebRTC
+     routinematig even `disconnected`. De gast brak dan af en viel terug op zijn eigen
+     lege canvas — vandaar het zwarte beeld. **Fix:** herstelperiode van 8 s met zichtbare
+     status, ICE-restart bij `failed`, pas daarna opgeven; beeld blijft staan.
+  2. **`database is locked` bij `pair-join` (503).** Niet door contentie: PDO-SQLite hield
+     een **niet-uitgelezen SELECT-cursor** open, waardoor een schrijfactie op dezelfde
+     verbinding blokkeerde — geen enkele retry hielp, want de cursor bleef het hele
+     verzoek open. **Fix:** alle enkelvoudige leesacties via `fetchRow()`/`fetchVal()`,
+     die de cursor sluiten. Aanvullend: poll doet read-first en gebruikt geen expliciete
+     transactie meer in het hete pad.
+- **RCA architectonisch:** onze eigen tests keken naar "verbonden ja/nee" op één moment;
+  ze dekten een hapering-onder-belasting niet af.
+- **Bewijs:** volledige e2e (verbinden → auto power-cycle → spel starten met "1" →
+  doorspelen) **3/3 zonder breuk**, gaststream ~15 s doorlopend. Vóór de fix 2 van de 4.
+- **Preventie:** (a) `disconnected` nooit als eindtoestand behandelen; (b) bij PDO altijd
+  `closeCursor()` na een enkelvoudige fetch — vastgelegd als patroon hieronder.
+
 ## Terugkerende patronen
 
 1. **Rol-asymmetrie in gedeelde tabellen** (BUG-003/003b/004) — host en gast delen één
    sessierij; elke query moet expliciet zeggen welke rol hij bedoelt.
 2. **Artefact bereikt de gebruiker niet** (BUG-002) — content-versioning boven cache-headers.
-3. **Schrijfdruk op SQLite** (BUG-007/008) — pollen vermenigvuldigt writes; throttle GC,
+3. **Openstaande PDO-cursor blokkeert eigen schrijfactie** (BUG-011) — na elke
+   enkelvoudige `fetch()`/`fetchColumn()` de cursor sluiten; retries helpen niet.
+4. **Schrijfdruk op SQLite** (BUG-007/008) — pollen vermenigvuldigt writes; throttle GC,
    neem schrijfsloten direct, maak schrijfacties herhaalbaar — en controleer of de regel
    ook geldt voor code die geen endpoint is.
 4. **Aanname die van betekenis verandert** (BUG-009/010) — v0.4.0 gaf de sessie een tweede
