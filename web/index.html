@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideopacHorse — Philips Videopac G7000 emulator met netplay</title>
-<link rel="stylesheet" href="style.css?v=0.5.1">
+<link rel="stylesheet" href="style.css?v=0.5.2">
 </head>
 <body>
 <div class="wrap">
@@ -120,53 +120,9 @@
     laadt hem dan automatisch en beide machines beginnen opnieuw.</p>
   </div>
 
-  <details class="config card" id="configCard">
-    <summary>⚙ Configuratie (thema, kleuren, typografie, layout)</summary>
-    <div class="row" style="margin-top:10px">
-      <label>Thema:
-        <select id="cfgTheme" data-cfg="theme">
-          <option value="dark">donker</option>
-          <option value="light">licht</option>
-        </select>
-      </label>
-      <button id="cfgExport">⬇ Exporteer .json</button>
-      <label style="cursor:pointer"><span class="badge">⬆ Importeer .json</span>
-        <input type="file" id="cfgImport" accept=".json" hidden></label>
-      <button id="cfgReset" class="danger">↺ Reset naar standaard</button>
-    </div>
-    <div class="cfg-grid" id="cfgColors">
-      <label>Accent <input type="color" data-cssvar="--accent"></label>
-      <label>Achtergrond <input type="color" data-cssvar="--bg"></label>
-      <label>Paneel <input type="color" data-cssvar="--panel-bg"></label>
-      <label>Paneelrand <input type="color" data-cssvar="--panel-border"></label>
-      <label>Tekst <input type="color" data-cssvar="--text"></label>
-      <label>Tekst gedimd <input type="color" data-cssvar="--text-dim"></label>
-      <label>Knop primair <input type="color" data-cssvar="--btn-primary"></label>
-      <label>Knop secundair <input type="color" data-cssvar="--btn-secondary"></label>
-      <label>Knop gevaar <input type="color" data-cssvar="--btn-danger"></label>
-      <label>Badge ok <input type="color" data-cssvar="--badge-ok"></label>
-      <label>Badge warn <input type="color" data-cssvar="--badge-warn"></label>
-      <label>Badge fout <input type="color" data-cssvar="--badge-err"></label>
-      <label>Canvasrand <input type="color" data-cssvar="--canvas-border"></label>
-      <label>Canvas-achtergrond <input type="color" data-cssvar="--canvas-bg"></label>
-      <label>Toetsenbord <input type="color" data-cssvar="--kbd-bg"></label>
-    </div>
-    <div class="cfg-grid">
-      <label>Lettertype
-        <select data-cssvar="--font-family" data-kind="raw">
-          <option value='system-ui, -apple-system, "Segoe UI", sans-serif'>Systeem</option>
-          <option value='Georgia, "Times New Roman", serif'>Serif</option>
-          <option value='"Courier New", ui-monospace, monospace'>Mono (retro)</option>
-        </select>
-      </label>
-      <label>Tekstgrootte <input type="range" min="12" max="20" data-cssvar="--font-size" data-unit="px"></label>
-      <label>Kopgrootte <input type="range" min="18" max="40" data-cssvar="--h1-size" data-unit="px"></label>
-      <label>Paginabreedte <input type="range" min="640" max="1400" data-cssvar="--container-w" data-unit="px"></label>
-      <label>Kaart-radius <input type="range" min="0" max="24" data-cssvar="--card-radius" data-unit="px"></label>
-      <label>Kaart-padding <input type="range" min="6" max="32" data-cssvar="--card-pad" data-unit="px"></label>
-      <label>Beeldschaal <input type="range" min="1" max="4" data-cssvar="--canvas-scale" data-kind="scale"></label>
-    </div>
-  </details>
+  <!-- Configuratiepaneel wordt opgebouwd door app.js (CFG_COLORS/CFG_RANGES) —
+       één bron voor beide pagina's, zie DESIGN_TOKENS.md -->
+  <details class="config card" id="configCard"></details>
 
   <footer>
     VideopacHorse v<span id="verFoot">0.5.0</span> · AGPL-3.0 ·
@@ -175,9 +131,9 @@
     <a href="stream/">gearchiveerde streamversie</a>
   </footer>
 </div>
-<script src="g7000.js?v=0.5.1"></script>
-<script src="netplay.js?v=0.5.1"></script>
-<script src="app.js?v=0.5.1"></script>
+<script src="g7000.js?v=0.5.2"></script>
+<script src="netplay.js?v=0.5.2"></script>
+<script src="app.js?v=0.5.2"></script>
 <script>
 /* UI-wiring. netplay levert dezelfde vorm als pairPlay, dus app.js (telefoon-
  * joysticks, gast-invoer) werkt hier ongewijzigd. */

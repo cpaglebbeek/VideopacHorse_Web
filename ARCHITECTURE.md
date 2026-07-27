@@ -14,6 +14,8 @@
 | Doorverwijzing | `web/2/index.html` | `/videopac/2/` → `/videopac/`; netplay is verhuisd, maar die URL staat in docs en bladwijzers |
 | Build | `build.sh` | core bouwen + artefacten kopiëren + cache-busters van BEIDE pagina's |
 | Tests | `tests/run.sh` | wegwerpserver + API-suite + twee browsersuites (`tests/README.md`) |
+| Architectuurplaat | `architectuur/VideopacHorse_Web_viewer.html` | standalone viewer met 5 views (Conceptueel/Logisch/Fysiek/Transacties/Journeys), animatie op de twee scenario's, ArchiMate ↔ Dragon1-switch; bron-DSL ernaast als `VideopacHorse_Web_archdsl.dsl` |
+| Vastlegging | `docs/PRINCIPLES.md`, `docs/DEPENDENCIES.md`, `docs/DUPLICATES.md`, `docs/screens/`, `CHANGELOG.md` | het waarom, de oorzaak-gevolgketen, geregistreerde duplicatie, schermreferenties en de releasehistorie |
 
 ## Data-flow
 
@@ -240,3 +242,21 @@ een ongenode joystick ziet verschijnen, stopt en start opnieuw (nieuwe code).
 6. **Versiebump-conventie** — elke wijziging aan `web/*` bumpt `version.json` + de
    `?v=`-cache-busters + `BUILD_V` (BUG-002: tussenliggende proxy's cachen immutable);
    `build.sh` synct de busters met `version.json`.
+
+## Architectuurplaat
+
+`architectuur/VideopacHorse_Web_viewer.html` — één bestand, geen externe afhankelijkheden,
+werkt via `file://`. Vijf views; Transacties en Journeys hebben een afspeelbaar scenario
+(▶/⏸/⏭ met snelheidsregelaar). De notatie-schakelaar wisselt tussen ArchiMate- en
+Dragon1-weergave zonder het model te wijzigen; export naar `.json`, `.dsl`, `.archimate` en
+`.svg` zit in de werkbalk.
+
+Elk element verwijst naar iets dat werkelijk bestaat — een bestand, een endpoint of een
+gedocumenteerde flow uit dit document. Er staat niets in dat "waarschijnlijk zo werkt".
+De bron-DSL (`architectuur/VideopacHorse_Web_archdsl.dsl`, 5,2 KB) is DSL-B-compatibel:
+PascalCase-types, geen `:type` op relaties.
+
+De viewer heeft één aanpassing ten opzichte van het sjabloon: `fitViewBox()` past de viewBox
+na elke render aan de getekende inhoud aan. Zonder dat viel bij de Fysiek- en
+Transacties-view de halve plaat buiten beeld, omdat elke view een andere doorsnede van het
+model toont en die zelden in de linkerbovenhoek ligt.

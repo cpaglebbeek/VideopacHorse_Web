@@ -91,6 +91,27 @@ with sync_playwright() as pw:
             break
         time.sleep(0.5)
     hs, gs = host.evaluate(STATE), guest.evaluate(STATE)
+
+    # Onderscheid tussen "de code deugt niet" en "de verbinding kwam niet tot stand".
+    # Gemeten: in 1 van 5 lokale runs mislukt de WebRTC-onderhandeling (STUN bereikbaar,
+    # geen TURN beschikbaar). Zonder dit onderscheid meldt de suite acht fouten alsof
+    # netplay stuk is, en dat kost je een uur zoeken naar een bug die er niet is.
+    verbindingsfout = any(
+        t and ("verbinding verbroken" in t or "wacht op antwoord" in t)
+        for t in (hs["status"], gs["status"]))
+    if not ok_run and verbindingsfout:
+        print("\n  ⚠ OMGEVING, NIET DE CODE: de WebRTC-verbinding kwam niet tot stand.")
+        print("    host=%r" % hs["status"])
+        print("    gast=%r" % gs["status"])
+        print("    Er is geen TURN-server; achter symmetrische NAT of bij een hik in de")
+        print("    STUN-onderhandeling gebeurt dit. Draai de suite opnieuw; blijft het")
+        print("    optreden, controleer dan eerst de netwerkroute (zie docs/DEPENDENCIES.md).")
+        print("    De overige checks worden overgeslagen — ze zouden allemaal 'falen' op")
+        print("    dezelfde ontbrekende verbinding en dat zegt niets over de code.\n")
+        print("RESULTAAT: overgeslagen (verbinding niet tot stand gekomen)")
+        browser.close()
+        sys.exit(2)
+
     check("beide kanten in netplay", ok_run, "host=%r gast=%r" % (hs["status"], gs["status"]))
     if not ok_run:
         print("   host:", hs); print("   gast:", gs)

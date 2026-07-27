@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.5.1';
+const BUILD_V = '0.5.2';
 
 /* Basispad-hooks. Sinds v0.5.1 is netplay de gewone versie op /videopac/ en draait
  * de gearchiveerde streamversie DEZE app.js één map dieper (/videopac/stream/) —
@@ -65,7 +65,65 @@ function applyCanvasScale() {
   cv.style.width = (cv.width * s) + 'px';
 }
 
+/* Het configuratiepaneel als data, niet als HTML. Tot v0.5.1 stond de volledige
+ * markup in béide pagina's — ~100 regels die gegarandeerd uit elkaar zouden lopen
+ * zodra er één token bijkwam. Nu is dit de enige bron en bouwt buildConfigPanel()
+ * hem op beide pagina's identiek op. Toevoegen van een instelling = één regel hier. */
+const CFG_COLORS = [
+  ['--accent', 'Accent'], ['--bg', 'Achtergrond'], ['--panel-bg', 'Paneel'],
+  ['--panel-border', 'Paneelrand'], ['--text', 'Tekst'], ['--text-dim', 'Tekst gedimd'],
+  ['--btn-primary', 'Knop primair'], ['--btn-primary-text', 'Knoptekst primair'],
+  ['--btn-secondary', 'Knop secundair'], ['--btn-danger', 'Knop gevaar'],
+  ['--badge-ok', 'Badge ok'], ['--badge-warn', 'Badge warn'], ['--badge-err', 'Badge fout'],
+  ['--canvas-border', 'Canvasrand'], ['--canvas-bg', 'Canvas-achtergrond'],
+  ['--kbd-bg', 'Toetsenbord'],
+];
+const CFG_RANGES = [
+  ['--font-size', 'Tekstgrootte', 12, 20, 'px', ''],
+  ['--h1-size', 'Kopgrootte', 18, 40, 'px', ''],
+  ['--container-w', 'Paginabreedte', 640, 1400, 'px', ''],
+  ['--card-radius', 'Kaart-radius', 0, 24, 'px', ''],
+  ['--card-pad', 'Kaart-padding', 6, 32, 'px', ''],
+  ['--canvas-scale', 'Beeldschaal', 1, 4, '', 'scale'],
+];
+const CFG_FONTS = [
+  ['system-ui, -apple-system, "Segoe UI", sans-serif', 'Systeem'],
+  ['Georgia, "Times New Roman", serif', 'Serif'],
+  ['"Courier New", ui-monospace, monospace', 'Mono (retro)'],
+];
+
+function buildConfigPanel() {
+  const host = $('configCard');
+  if (!host || host.dataset.built) return;
+  host.dataset.built = '1';
+  const esc = v => String(v).replace(/"/g, '&quot;');
+  host.innerHTML =
+    '<summary>⚙ Configuratie (thema, kleuren, typografie, layout)</summary>' +
+    '<div class="row" style="margin-top:10px">' +
+      '<label>Thema: <select id="cfgTheme" data-cfg="theme">' +
+        '<option value="dark">donker</option><option value="light">licht</option></select></label>' +
+      '<button id="cfgExport">⬇ Exporteer .json</button>' +
+      '<label style="cursor:pointer"><span class="badge">⬆ Importeer .json</span>' +
+        '<input type="file" id="cfgImport" accept=".json" hidden></label>' +
+      '<button id="cfgReset" class="danger">↺ Reset naar standaard</button>' +
+    '</div>' +
+    '<div class="cfg-grid" id="cfgColors">' +
+      CFG_COLORS.map(([v, label]) =>
+        '<label>' + label + ' <input type="color" data-cssvar="' + esc(v) + '"></label>').join('') +
+    '</div>' +
+    '<div class="cfg-grid">' +
+      '<label>Lettertype <select data-cssvar="--font-family" data-kind="raw">' +
+        CFG_FONTS.map(([val, label]) => '<option value="' + esc(val) + '">' + label + '</option>').join('') +
+      '</select></label>' +
+      CFG_RANGES.map(([v, label, min, max, unit, kind]) =>
+        '<label>' + label + ' <input type="range" min="' + min + '" max="' + max +
+        '" data-cssvar="' + esc(v) + '"' + (unit ? ' data-unit="' + unit + '"' : '') +
+        (kind ? ' data-kind="' + kind + '"' : '') + '></label>').join('') +
+    '</div>';
+}
+
 function cfgInit() {
+  buildConfigPanel();
   CFG_DEFAULTS = cfgDefaults();
   const stored = localStorage.getItem(CFG_KEY);
   if (stored) { try { cfgApply(JSON.parse(stored)); } catch (e) { /* corrupte cfg negeren */ } }

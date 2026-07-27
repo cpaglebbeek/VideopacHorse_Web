@@ -350,6 +350,30 @@ function withRetry(callable $fn, bool $fatal = true) {
     throw $last;
 }
 
+/* Een schrijfactie binnen BEGIN IMMEDIATE, met gegarandeerde ROLLBACK. Zowel
+ * pair-join als ctrl-join hadden hier hun eigen identieke try/catch/rollback-blok
+ * staan — twaalf regels die twee keer onderhouden moesten worden en waarvan de
+ * ene helft stilletjes kon afwijken van de andere. $fn geeft een array terug;
+ * een sleutel 'err' betekent "geen fout in de database, maar wel een afwijzing"
+ * en rolt netjes terug zonder exceptie. */
+function inImmediateTransaction(callable $fn) {
+    return withRetry(function () use ($fn) {
+        db()->exec('BEGIN IMMEDIATE');
+        try {
+            $res = $fn();
+            if (isset($res['err'])) {
+                db()->exec('ROLLBACK');
+            } else {
+                db()->exec('COMMIT');
+            }
+            return $res;
+        } catch (Throwable $e) {
+            try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { }
+            throw $e;
+        }
+    });
+}
+
 function requireSessionByToken(?string $token): array {
     if (!is_string($token) || !preg_match('/^[a-f0-9]{48}$/', $token)) {
         fail('ongeldig token', 401);
@@ -422,18 +446,14 @@ case 'pair-join': {
      * ook niets meer te synchroniseren tussen twee endpoints.
      * fail() mag hier niet: dat doet exit() en zou de transactie open laten. */
     $guestToken = newToken();
-    $res = withRetry(function () use ($guestToken, $code) {
-        db()->exec('BEGIN IMMEDIATE');
-        try {
+    $res = inImmediateTransaction(function () use ($guestToken, $code) {
             $st = db()->prepare('SELECT token, guest_token, expires_at FROM sessions WHERE code=? AND expires_at>?');
             $st->execute([$code, time()]);
             $sess = fetchRow($st);
             if (!$sess) {
-                db()->exec('ROLLBACK');
                 return ['err' => ['code verlopen of onbekend', 400]];
             }
             if (!empty($sess['guest_token'])) {
-                db()->exec('ROLLBACK');
                 return ['err' => ['deze sessie is al bezet', 400]];
             }
 
@@ -441,15 +461,9 @@ case 'pair-join': {
                                  WHERE token=? AND (guest_token IS NULL OR guest_token='')");
             $st->execute([$guestToken, $sess['token']]);
             if ($st->rowCount() < 1) {
-                db()->exec('ROLLBACK');
                 return ['err' => ['deze sessie is al bezet', 400]];
             }
-            db()->exec('COMMIT');
             return ['expires_at' => (int)$sess['expires_at']];
-        } catch (Throwable $e) {
-            try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { }
-            throw $e;
-        }
     });
 
     if (isset($res['err'])) {
@@ -601,16 +615,13 @@ case 'ctrl-join': {
      * telefoons die tegelijk dezelfde code intikken allebei op dezelfde plek
      * (zelfde reden als BUG-007). Fouten worden als waarde teruggegeven, niet
      * als fail(): fail() doet exit en zou de transactie open laten staan. */
-    $res = withRetry(function () use ($code, $ctrlToken, $nowMs) {
-        db()->exec('BEGIN IMMEDIATE');
-        try {
+    $res = inImmediateTransaction(function () use ($code, $ctrlToken, $nowMs) {
             $st = db()->prepare('SELECT token, ctrl_code_p1, ctrl_code_p2, expires_at
                                  FROM sessions
                                  WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c) AND expires_at>:now');
             $st->execute([':c' => $code, ':now' => time()]);
             $sess = fetchRow($st);
             if (!$sess) {
-                db()->exec('ROLLBACK');
                 return ['err' => ['code verlopen of onbekend', 400]];
             }
 
@@ -627,7 +638,6 @@ case 'ctrl-join': {
             $cur = fetchRow($q);
             if ($cur) {
                 if ($nowMs - (int)$cur['updated_at'] < CTRL_TTL_SECONDS * 1000) {
-                    db()->exec('ROLLBACK');
                     return ['err' => ['deze plek is al bezet door een telefoon', 409]];
                 }
                 db()->prepare('DELETE FROM controllers WHERE token=?')->execute([$cur['token']]);
@@ -635,12 +645,7 @@ case 'ctrl-join': {
 
             db()->prepare('INSERT INTO controllers(token, session_token, slot, mask, updated_at) VALUES(?,?,?,0,?)')
                 ->execute([$ctrlToken, $sess['token'], $slot, $nowMs]);
-            db()->exec('COMMIT');
             return ['slot' => $slot, 'expires_at' => (int)$sess['expires_at']];
-        } catch (Throwable $e) {
-            try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { }
-            throw $e;
-        }
     });
 
     if (isset($res['err'])) {

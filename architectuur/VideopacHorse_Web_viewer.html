@@ -1,0 +1,1538 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="UTF-8">
+<title>VideopacHorse_Web — architectuur (v0.5.1-Kerstens)</title>
+<!--
+  ============================================================
+  Architectuur Viewer — sanitycheck-reference-template v0.1.0
+  ============================================================
+
+  Doel: standalone single-file HTML viewer die voldoet aan
+  alle /sanitycheck eisen voor `architectuur/<repo>_viewer.html`.
+
+  Eigenschappen:
+    - 5 verplichte views (Conceptueel/Logisch/Fysiek/Transacties/Journeys)
+    - Animatie voor Transacties + Journeys (Play/Pause/Step/snelheid)
+    - Notatie-switch ArchiMate <-> Dragon1 (zelfde model, ander render-pad)
+    - Import: .json / .dsl (ArchDSL DSL-B) / .archimate (placeholder)
+    - Export: .json / .dsl / .archimate (placeholder) / .svg
+    - Deterministisch: geen Date.now / Math.random in render-pad
+    - Standalone: geen externe deps, geen CDN, werkt via file://
+
+  Default-model: een ingekorte versie van
+  AModeler/tests/corpus/dual_render_demo.dsl — 4 lagen, 16 elementen,
+  14 relaties, 5 views, 2 animatie-scenarios.
+
+  Voor gebruik in een repo:
+    1. cp templates/viewer_template.html <repo>/architectuur/<repo>_viewer.html
+    2. Vervang DEFAULT_MODEL met je eigen model (of importeer .dsl)
+    3. Update TITLE constant
+    4. Commit + verwijs vanuit ARCHITECTURE.md
+  ============================================================
+-->
+<style>
+:root {
+  /* ArchiMate-conventie kleuren — bron: Dragon1Website/docs/COMPARISON_AMODELER.md */
+  --c-motivation:  #ccccff;
+  --c-strategy:    #ffc685;
+  --c-business:    #ffffb5;
+  --c-application: #b5ffff;
+  --c-technology:  #c9e7b7;
+  --c-impl:        #ffe0e0;
+  --c-risk:        #fff1f2;
+  --c-c4:          #1168bd;
+  --c-dragon1:     #ffd700;
+  --c-other:       #e8e8e8;
+  --c-stroke:      #6b6b6b;
+  --c-stroke-motivation:  #7c3aed;
+  --c-stroke-strategy:    #ea580c;
+  --c-stroke-business:    #ca8a04;
+  --c-stroke-application: #0284c7;
+  --c-stroke-technology:  #16a34a;
+  --c-stroke-risk:        #e11d48;
+  --c-arrow:    #444;
+  --c-warning:  #d9534f;
+  --c-ok:       #2c8a2c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: Calibri, "Segoe UI", Arial, sans-serif;
+  background: #f4f4f4;
+  color: #222;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 16px;
+  background: #fff;
+  border-bottom: 1px solid #ccc;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+.toolbar h1 {
+  font-size: 15px;
+  margin: 0 18px 0 0;
+  font-weight: 600;
+  color: #333;
+}
+.toolbar label, .toolbar select, .toolbar button {
+  font-family: inherit;
+  font-size: 13px;
+}
+.toolbar select {
+  padding: 5px 8px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #fff;
+}
+.toolbar button, .filebtn {
+  padding: 5px 12px;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  background: #fafafa;
+  cursor: pointer;
+  font-size: 13px;
+}
+.toolbar button:hover, .filebtn:hover { background: #eef; }
+.toolbar button.active {
+  background: #2c5aa0;
+  color: #fff;
+  border-color: #1e3f70;
+}
+.toolbar .filebtn input { display: none; }
+.toolbar .sep { width: 1px; height: 22px; background: #ccc; margin: 0 4px; }
+.toolbar .right { margin-left: auto; font-size: 12px; color: #666; }
+.toolbar .notation-toggle {
+  display: inline-flex;
+  border: 1px solid #aaa;
+  border-radius: 3px;
+  overflow: hidden;
+}
+.toolbar .notation-toggle button {
+  border: none;
+  border-radius: 0;
+  border-right: 1px solid #aaa;
+}
+.toolbar .notation-toggle button:last-child { border-right: none; }
+.anim-controls {
+  display: none;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: #fff8d8;
+  border: 1px solid #d4b300;
+  border-radius: 3px;
+}
+.anim-controls.visible { display: inline-flex; }
+.anim-controls input[type=range] { width: 80px; }
+.anim-controls label { font-size: 11px; color: #555; }
+#stage {
+  padding: 18px;
+  overflow: auto;
+}
+#canvas-wrap {
+  background: #fff;
+  border: 1px solid #ddd;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+  width: max-content;
+  margin: 0 auto;
+}
+svg#canvas { display: block; background: #fff; }
+.info {
+  margin: 8px 16px 0;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  color: #555;
+  border-radius: 3px;
+}
+.info b { color: #222; }
+.log {
+  margin: 8px 16px;
+  padding: 8px 12px;
+  background: #fff8d8;
+  border-left: 4px solid #d4b300;
+  font-size: 12px;
+  font-family: "Consolas", "Monaco", monospace;
+  max-height: 120px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.log.empty { display: none; }
+.legend-block {
+  margin: 8px 16px 16px;
+  padding: 8px 12px;
+  background: #fff;
+  border: 1px solid #ddd;
+  font-size: 12px;
+  border-radius: 3px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  align-items: center;
+}
+.legend-block .item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-block .sw {
+  width: 18px; height: 12px;
+  border: 1px solid var(--c-stroke);
+  display: inline-block;
+}
+/* Element-styling */
+.elem-rect { stroke: var(--c-stroke); stroke-width: 1; }
+.elem-label { font-size: 12px; fill: #222; pointer-events: none; }
+.elem-type-banner { font-size: 9px; fill: #555; font-style: italic; pointer-events: none; }
+.rel-line { stroke: var(--c-arrow); stroke-width: 1.5; fill: none; }
+.rel-line.dashed { stroke-dasharray: 5,4; }
+.rel-line.dotted { stroke-dasharray: 2,3; }
+.rel-label { font-size: 10px; fill: #444; pointer-events: none; }
+.rel-label-bg { fill: #fff; stroke: none; }
+/* Animatie-token */
+.anim-token {
+  fill: #ff6b35;
+  stroke: #c44616;
+  stroke-width: 1.5;
+}
+/* Dragon1-modus: aanvullende styling */
+.notation-dragon1 .elem-rect,
+.notation-dragon1 .elem-shape { stroke-width: 1.8; }
+.notation-dragon1 .elem-type-banner { display: none; }
+/* Dragon1 concept-shape: ovaal, geen scherpe hoeken — bron: DRAGON1_VISUAL_LANGUAGE.md */
+.notation-dragon1 .elem-shape { fill: var(--c-other); stroke: var(--c-stroke); }
+/* ArchiMate-modus banner zichtbaar */
+.notation-archimate .elem-type-banner { display: block; }
+/* Heat-styling (data-driven) — actief alleen in Dragon1-modus.
+   Heat-attributen: data-criticality / data-completion / data-cost (0-1 genormaliseerd).
+   Interpolatie groen→geel→rood gebeurt JS-side (zie heatToColor); fallback hieronder. */
+:root {
+  --heat-low:  #22c55e;  /* groen */
+  --heat-mid:  #eab308;  /* geel */
+  --heat-high: #ef4444;  /* rood */
+}
+.notation-dragon1 .elem-shape { transition: fill 240ms ease; }
+.heat-dropdown { display: inline-flex; align-items: center; gap: 6px; }
+.heat-dropdown select:disabled { opacity: 0.45; cursor: not-allowed; }
+/* Landscape-backdrop — bron: docs/DRAGON1_VISUAL_LANGUAGE.md §2 (landscape als backdrop).
+   View-afhankelijk: Conceptueel + Logisch aan, Fysiek + Transacties + Journeys uit. */
+.landscape-backdrop rect { opacity: 0.18; pointer-events: none; }
+.landscape-backdrop text {
+  font-size: 28px; font-weight: 700;
+  fill: var(--c-stroke); opacity: 0.22;
+  pointer-events: none; user-select: none;
+}
+/* Sketch-mode — bron: docs/DRAGON1_VISUAL_LANGUAGE.md §4 (sketch / artist-impression).
+   feTurbulence-filter met fixed seed=42 → deterministisch. Labels in systeem-cursive
+   (geen Google Fonts om standalone/file:// compatibiliteit te bewaren). */
+.notation-dragon1.sketch-mode .elem-shape,
+.notation-dragon1.sketch-mode .rel-line { filter: url(#roughen); }
+.notation-dragon1.sketch-mode .elem-label,
+.notation-dragon1.sketch-mode .rel-label {
+  font-family: "Bradley Hand", "Marker Felt", "Comic Sans MS", cursive;
+}
+.btn-render-mode.active { background: #2c5aa0; color: #fff; border-color: #1e3f70; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <h1 id="viewer-title">VideopacHorse_Web — architectuur</h1>
+
+  <label>View:
+    <select id="viewSelect"></select>
+  </label>
+
+  <span class="sep"></span>
+
+  <span style="font-size:11px;color:#666">Notatie:</span>
+  <div class="notation-toggle" id="notationToggle">
+    <button data-notation="archimate" class="active">ArchiMate</button>
+    <button data-notation="dragon1">Dragon1</button>
+  </div>
+
+  <span class="sep"></span>
+
+  <label class="heat-dropdown" title="Data-driven heat — Dragon1-eigen, kleurt elementen op attribuut (genormaliseerd 0-1). Niet actief in ArchiMate-modus.">
+    Heat:
+    <select id="heatSelect" disabled>
+      <option value="off">off</option>
+      <option value="criticality">criticality</option>
+      <option value="completion">completion</option>
+      <option value="cost">cost</option>
+    </select>
+  </label>
+
+  <button id="btnSketch" class="btn-render-mode" disabled title="Sketch-mode — Dragon1's artist-impression rendering (feTurbulence-filter + cursive font). Alleen actief in Dragon1-modus.">&#9999;&#xFE0F; Sketch</button>
+
+  <span class="sep"></span>
+
+  <div class="anim-controls" id="animControls">
+    <button id="btnPlay" title="Play">&#9654;</button>
+    <button id="btnPause" title="Pause">&#10074;&#10074;</button>
+    <button id="btnStep" title="Step">&#9197;</button>
+    <button id="btnLoop" title="Loop toggle" class="active">&#128257;</button>
+    <label>snelh.</label>
+    <input type="range" id="speedSlider" min="200" max="3000" value="1200" step="100">
+    <span id="scenarioLabel" style="font-size:11px;color:#444"></span>
+  </div>
+
+  <span class="sep"></span>
+
+  <button id="btnExportJson" title="Download .json (intern formaat)">&#8595; JSON</button>
+  <button id="btnExportDsl" title="Download .dsl (ArchDSL DSL-B)">&#8595; DSL</button>
+  <button id="btnExportArchimate" title="Download .archimate (Archi v5)">&#8595; .archimate</button>
+  <button id="btnExportSvg" title="Download huidig diagram als .svg">&#8595; SVG</button>
+
+  <span class="sep"></span>
+
+  <label class="filebtn" title="Importeer intern .json">&#8593; JSON<input type="file" id="impJson" accept=".json,application/json"></label>
+  <label class="filebtn" title="Importeer ArchDSL .dsl">&#8593; DSL<input type="file" id="impDsl" accept=".dsl,.txt,text/plain"></label>
+  <label class="filebtn" title="Importeer .archimate (Archi v5)">&#8593; .archimate<input type="file" id="impArchimate" accept=".archimate,.xml,application/xml,text/xml"></label>
+
+  <span class="sep"></span>
+
+  <button id="btnReset" title="Herstel ingebouwde model">&#8634; Reset</button>
+
+  <span class="right">v0.1.0 &middot; deterministisch &middot; standalone</span>
+</div>
+
+<div id="info" class="info"></div>
+<div id="log" class="log empty"></div>
+
+<div id="stage">
+  <div id="canvas-wrap">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg" width="1300" height="900" viewBox="0 0 1300 900" class="notation-archimate"></svg>
+  </div>
+</div>
+
+<div class="legend-block" id="legend"></div>
+
+<script>
+/* ============================================================
+ * Architectuur Viewer Template — v0.1.0
+ * Standalone, deterministisch, file://-compatible.
+ * ============================================================ */
+
+/* --- Type -> Layer mapping (ArchiMate 3.2 + C4 + Dragon1) --- */
+const TYPE_LAYER = {
+  // Motivation
+  stakeholder:'motivation', goal:'motivation', outcome:'motivation',
+  requirement:'motivation', constraint:'motivation', driver:'motivation',
+  assessment:'motivation', principle:'motivation',
+  // Strategy
+  capability:'strategy', resource:'strategy', valuestream:'strategy',
+  courseofaction:'strategy',
+  // Business
+  businessactor:'business', businessrole:'business', businessprocess:'business',
+  businessfunction:'business', businessservice:'business',
+  businessobject:'business', businessinteraction:'business',
+  businessevent:'business', businesscollaboration:'business',
+  // Application
+  applicationcomponent:'application', applicationservice:'application',
+  applicationinterface:'application', applicationcollaboration:'application',
+  applicationinteraction:'application', applicationevent:'application',
+  applicationprocess:'application', applicationfunction:'application',
+  dataobject:'application',
+  // Technology
+  node:'technology', equipment:'technology', systemsoftware:'technology',
+  communicationnetwork:'technology', device:'technology',
+  technologyservice:'technology', path:'technology', artifact:'technology',
+  // Implementation
+  workpackage:'impl', deliverable:'impl', plateau:'impl', gap:'impl',
+  // Risk
+  threatactor:'risk', threatagent:'risk', vulnerability:'risk',
+  risk:'risk', controlmeasure:'risk',
+  // C4
+  system:'c4', container:'c4', component:'c4', person:'c4',
+  // Dragon1-eigen
+  strategic:'dragon1', operational:'dragon1', capabilities:'dragon1'
+};
+
+/* --- Layer -> fill kleur (ArchiMate-conventie) --- */
+const LAYER_FILL = {
+  motivation:  '#ccccff', strategy: '#ffc685', business: '#ffffb5',
+  application: '#b5ffff', technology: '#c9e7b7', impl: '#ffe0e0',
+  risk: '#fff1f2', c4: '#1168bd', dragon1: '#ffd700', other: '#e8e8e8'
+};
+const LAYER_STROKE = {
+  motivation:  '#7c3aed', strategy: '#ea580c', business: '#ca8a04',
+  application: '#0284c7', technology: '#16a34a', impl: '#94a3b8',
+  risk: '#e11d48', c4: '#0b4d8c', dragon1: '#b8860b', other: '#6b6b6b'
+};
+const LAYER_LABEL = {
+  motivation: 'Motivation', strategy: 'Strategy', business: 'Business',
+  application: 'Application', technology: 'Technology',
+  impl: 'Implementation', risk: 'Risk', c4: 'C4', dragon1: 'Dragon1', other: 'Other'
+};
+
+/* --- ArchiMate type-banner labels (PascalCase pretty-print) --- */
+const TYPE_BANNER = {
+  businessactor: 'BusinessActor', businessrole: 'BusinessRole',
+  businessprocess: 'BusinessProcess', businessfunction: 'BusinessFunction',
+  businessservice: 'BusinessService', businessobject: 'BusinessObject',
+  applicationcomponent: 'ApplicationComponent',
+  applicationservice: 'ApplicationService',
+  applicationinterface: 'ApplicationInterface',
+  dataobject: 'DataObject',
+  node: 'Node', systemsoftware: 'SystemSoftware',
+  communicationnetwork: 'CommunicationNetwork', device: 'Device',
+  driver: 'Driver', goal: 'Goal', requirement: 'Requirement',
+  stakeholder: 'Stakeholder', constraint: 'Constraint',
+  capability: 'Capability', resource: 'Resource',
+  valuestream: 'ValueStream',
+  threatactor: 'ThreatActor', vulnerability: 'Vulnerability',
+  risk: 'Risk', controlmeasure: 'ControlMeasure',
+  workpackage: 'WorkPackage', deliverable: 'Deliverable',
+  plateau: 'Plateau', gap: 'Gap',
+  system: 'System', container: 'Container', component: 'Component',
+  person: 'Person',
+  strategic: 'Strategic', operational: 'Operational',
+  capabilities: 'Capabilities'
+};
+
+/* --- Relatie-type-inferentie tabel (subset uit AModeler parser.js v3) --- */
+const REL_INFER = {
+  'businessactor->businessprocess': 'assignment',
+  'businessactor->businessrole': 'assignment',
+  'businessrole->businessprocess': 'assignment',
+  'businessprocess->businessservice': 'realization',
+  'businessprocess->businessobject': 'access',
+  'businessservice->businessprocess': 'serving',
+  'applicationcomponent->applicationservice': 'realization',
+  'applicationcomponent->applicationcomponent': 'serving',
+  'applicationcomponent->dataobject': 'access',
+  'applicationcomponent->businessprocess': 'serving',
+  'applicationservice->businessservice': 'serving',
+  'applicationservice->businessprocess': 'serving',
+  'node->applicationcomponent': 'assignment',
+  'node->systemsoftware': 'assignment',
+  'systemsoftware->applicationcomponent': 'assignment',
+  'systemsoftware->dataobject': 'realization',
+  'communicationnetwork->node': 'serving',
+  'driver->goal': 'influence',
+  'goal->requirement': 'realization',
+  'requirement->businessprocess': 'realization',
+  'requirement->applicationcomponent': 'realization'
+};
+function inferRelType(fromType, toType) {
+  const k = (fromType || '').toLowerCase() + '->' + (toType || '').toLowerCase();
+  return REL_INFER[k] || 'flow';
+}
+
+/* --- Relatie-styling per type --- */
+const REL_STYLE = {
+  assignment:    { dash: 'none',  marker: 'arrow',        startMarker: 'dot' },
+  realization:   { dash: '5,4',   marker: 'arrow-hollow', startMarker: 'none' },
+  serving:       { dash: '5,4',   marker: 'arrow',        startMarker: 'none' },
+  access:        { dash: '5,4',   marker: 'arrow',        startMarker: 'none' },
+  flow:          { dash: '5,4',   marker: 'arrow',        startMarker: 'none' },
+  influence:     { dash: '2,3',   marker: 'arrow',        startMarker: 'none' },
+  composition:   { dash: 'none',  marker: 'none',         startMarker: 'diamond' },
+  aggregation:   { dash: 'none',  marker: 'none',         startMarker: 'diamond-hollow' },
+  triggers:      { dash: '5,4',   marker: 'arrow',        startMarker: 'none' },
+  association:   { dash: 'none',  marker: 'none',         startMarker: 'none' }
+};
+
+/* ============================================================
+ * DEFAULT MODEL — bron: AModeler/tests/corpus/dual_render_demo.dsl
+ * Notatie-agnostisch: elementen + relaties + views + scenarios.
+ * ============================================================ */
+const DEFAULT_MODEL = {
+  meta: {
+    title: 'VideopacHorse_Web — v0.5.1-Kerstens',
+    subtitle: 'Elk element is herleidbaar naar een bestand, endpoint of gedocumenteerde flow (zie ARCHITECTURE.md / DEPENDENCIES.md / PRINCIPLES.md)',
+    language: 'archimate'
+  },
+  elements: [
+    // ---- Motivation (conceptueel) — bron: docs/PRINCIPLES.md ----
+    { id: 'd_samen', type: 'Driver', label: 'Samen spelen op een G7000', pos: [140,80] },
+    { id: 'd_rom', type: 'Driver', label: 'Geen ROM-distributie', pos: [420,80] },
+    { id: 'g_scherp', type: 'Goal', label: 'Gast: eigen scherp beeld en geluid', pos: [700,80] },
+    { id: 'p1', type: 'Principle', label: 'P-1 Geen backend voor de emulatie', pos: [140,200] },
+    { id: 'p2', type: 'Principle', label: 'P-2 Site host geen ROM-bytes', pos: [420,200] },
+    { id: 'p4', type: 'Principle', label: 'P-4 Een bestand, een gedrag', pos: [700,200] },
+    { id: 'p5', type: 'Principle', label: 'P-5 Alles via de lockstep', pos: [980,200] },
+    { id: 'req_det', type: 'Requirement', label: 'Bit-identieke emulatie aan beide kanten', pos: [980,80] },
+
+    // ---- Business (logisch) — bron: docs/screens/README.md + ARCHITECTURE.md ----
+    { id: 'a_host', type: 'BusinessActor', label: 'Host', pos: [140,340] },
+    { id: 'a_gast', type: 'BusinessActor', label: 'Gast', pos: [140,430] },
+    { id: 'a_tel', type: 'BusinessActor', label: 'Telefoon-speler', pos: [140,520] },
+    { id: 'bp_start', type: 'BusinessProcess', label: 'Sessie starten (3 codes)', pos: [380,340], criticality: 0.8, completion: 1, cost: 0.3 },
+    { id: 'bp_join', type: 'BusinessProcess', label: 'Meedoen als gast', pos: [380,430], criticality: 0.9, completion: 1, cost: 0.4 },
+    { id: 'bp_koppel', type: 'BusinessProcess', label: 'Joystick koppelen', pos: [380,520], criticality: 0.5, completion: 1, cost: 0.2 },
+    { id: 'bs_netplay', type: 'BusinessService', label: 'Netplay (/videopac/)', pos: [640,385] },
+    { id: 'bs_stream', type: 'BusinessService', label: 'Streamversie, gearchiveerd (/videopac/stream/)', pos: [640,520] },
+
+    // ---- Application (logisch) — bron: de bestanden zelf ----
+    { id: 'ac_index', type: 'ApplicationComponent', label: 'web/index.html — netplay-pagina', pos: [140,660] },
+    { id: 'ac_app', type: 'ApplicationComponent', label: 'web/app.js — glue, invoer, GAMES, config', pos: [420,660] },
+    { id: 'ac_netplay', type: 'ApplicationComponent', label: 'web/netplay.js — lockstep', pos: [700,660] },
+    { id: 'ac_stream', type: 'ApplicationComponent', label: 'web/stream/ — archief + pairplay.js', pos: [140,760] },
+    { id: 'ac_redirect', type: 'ApplicationComponent', label: 'web/2/index.html — doorverwijzing', pos: [140,850] },
+    { id: 'ac_api', type: 'ApplicationComponent', label: 'web/api/index.php — pairing en signaling', pos: [980,660] },
+    { id: 'as_pair', type: 'ApplicationService', label: 'pair-create / pair-join / pair-end', pos: [1240,600] },
+    { id: 'as_rtc', type: 'ApplicationService', label: 'rtc-signal-send / -poll', pos: [1240,690] },
+    { id: 'as_ctrl', type: 'ApplicationService', label: 'ctrl-join / -input / -poll / -leave', pos: [1240,780] },
+    { id: 'do_db', type: 'DataObject', label: 'pairing.db — sessions, controllers, rtc_signals', pos: [980,780] },
+    { id: 'do_idb', type: 'DataObject', label: 'IndexedDB — BIOS en ROM-cache', pos: [420,780] },
+    { id: 'do_games', type: 'DataObject', label: 'web/games.json — 65 titels met CRC', pos: [420,870] },
+    { id: 'do_style', type: 'DataObject', label: 'web/style.css — gedeelde tokens', pos: [700,760] },
+
+    // ---- Technology (fysiek) ----
+    { id: 'n_hc55', type: 'Node', label: 'HorseCloud55 — nginx + php8.3-fpm', pos: [980,980] },
+    { id: 'n_browser_h', type: 'Device', label: 'Browser host', pos: [140,980] },
+    { id: 'n_browser_g', type: 'Device', label: 'Browser gast', pos: [420,980] },
+    { id: 'n_phone', type: 'Device', label: 'Android-telefoon', pos: [700,980] },
+    { id: 'ar_wasm', type: 'Artifact', label: 'web/g7000.wasm — Core 0.5.1-Kerstens', pos: [140,1080] },
+    { id: 'ar_apk', type: 'Artifact', label: 'VPHJoystick-v0.5.1 (HorseAPK)', pos: [700,1080] },
+    { id: 'ar_dbfile', type: 'Artifact', label: '/var/lib/videopac/pairing.db', pos: [980,1080] },
+    { id: 'ts_stun', type: 'TechnologyService', label: 'STUN (Google) — geen TURN', pos: [420,1080] },
+    { id: 'ts_archive', type: 'TechnologyService', label: 'archive.org /cors/ — ROM-bron', pos: [1240,980] },
+    { id: 'ts_p2p', type: 'TechnologyService', label: 'WebRTC DataChannels: ctl + in', pos: [280,1180] }
+  ],
+  relations: [
+    { id: 'v01', from: 'd_samen', to: 'g_scherp', label: 'drijft aan' },
+    { id: 'v02', from: 'd_rom', to: 'p2', label: 'leidt tot' },
+    { id: 'v03', from: 'g_scherp', to: 'req_det', label: 'vereist' },
+    { id: 'v04', from: 'req_det', to: 'p5', label: 'stelt eis' },
+    { id: 'v05', from: 'd_samen', to: 'p1', label: 'kadert' },
+    { id: 'v06', from: 'p4', to: 'ac_app', label: 'stuurt' },
+    { id: 'v07', from: 'p5', to: 'ac_netplay', label: 'stuurt' },
+    { id: 'v08', from: 'p2', to: 'do_games', label: 'stuurt' },
+
+    { id: 'b01', from: 'a_host', to: 'bp_start', label: 'voert uit' },
+    { id: 'b02', from: 'a_gast', to: 'bp_join', label: 'voert uit' },
+    { id: 'b03', from: 'a_tel', to: 'bp_koppel', label: 'voert uit' },
+    { id: 'b04', from: 'bp_start', to: 'bs_netplay', label: 'realiseert' },
+    { id: 'b05', from: 'bp_join', to: 'bs_netplay', label: 'realiseert' },
+    { id: 'b06', from: 'bp_koppel', to: 'bs_netplay', label: 'ondersteunt' },
+    { id: 'b07', from: 'bs_stream', to: 'a_gast', label: 'bedient (gearchiveerd)' },
+
+    { id: 'a01', from: 'ac_index', to: 'ac_app', label: 'laadt' },
+    { id: 'a02', from: 'ac_index', to: 'ac_netplay', label: 'laadt' },
+    { id: 'a03', from: 'ac_stream', to: 'ac_app', label: 'laadt via VPH_BASE' },
+    { id: 'a04', from: 'ac_redirect', to: 'ac_index', label: 'verwijst naar' },
+    { id: 'a05', from: 'ac_app', to: 'do_idb', label: 'schrijft' },
+    { id: 'a06', from: 'ac_app', to: 'do_games', label: 'leest' },
+    { id: 'a07', from: 'ac_index', to: 'do_style', label: 'gebruikt' },
+    { id: 'a08', from: 'ac_stream', to: 'do_style', label: 'gebruikt' },
+    { id: 'a09', from: 'ac_api', to: 'as_pair', label: 'realiseert' },
+    { id: 'a10', from: 'ac_api', to: 'as_rtc', label: 'realiseert' },
+    { id: 'a11', from: 'ac_api', to: 'as_ctrl', label: 'realiseert' },
+    { id: 'a12', from: 'ac_api', to: 'do_db', label: 'schrijft' },
+    { id: 'a13', from: 'ac_netplay', to: 'as_pair', label: 'roept aan' },
+    { id: 'a14', from: 'ac_netplay', to: 'as_rtc', label: 'roept aan' },
+    { id: 'a15', from: 'ac_app', to: 'as_ctrl', label: 'pollt (host)' },
+    { id: 'a16', from: 'ac_netplay', to: 'ts_p2p', label: 'gebruikt' },
+    { id: 'a17', from: 'ac_app', to: 'ar_wasm', label: 'laadt' },
+
+    { id: 't01', from: 'n_hc55', to: 'ac_api', label: 'draait' },
+    { id: 't02', from: 'n_browser_h', to: 'ac_index', label: 'draait' },
+    { id: 't03', from: 'n_browser_g', to: 'ac_index', label: 'draait' },
+    { id: 't04', from: 'n_phone', to: 'ar_apk', label: 'draait' },
+    { id: 't05', from: 'ar_apk', to: 'as_ctrl', label: 'roept aan' },
+    { id: 't06', from: 'n_hc55', to: 'ar_dbfile', label: 'host' },
+    { id: 't07', from: 'ts_p2p', to: 'ts_stun', label: 'onderhandelt via' },
+    { id: 't08', from: 'ac_app', to: 'ts_archive', label: 'haalt ROM (client-side)' },
+    { id: 't09', from: 'n_browser_h', to: 'ts_p2p', label: 'verbindt' },
+    { id: 't10', from: 'n_browser_g', to: 'ts_p2p', label: 'verbindt' }
+  ],
+  views: [
+    { id: 'conceptueel', label: 'Conceptueel',
+      description: 'Waarom dit bestaat: drijfveren, doel en de principes uit docs/PRINCIPLES.md.',
+      include: { layers: ['motivation'] } },
+    { id: 'logisch', label: 'Logisch',
+      description: 'Wie doet wat, en welke bestanden dat realiseren. Business + Application.',
+      include: { layers: ['business', 'application'] } },
+    { id: 'fysiek', label: 'Fysiek',
+      description: 'Waarop het draait: HC55, twee browsers, telefoon, wasm en de externe bronnen.',
+      include: { layers: ['technology'] } },
+    { id: 'transacties', label: 'Transacties',
+      description: 'Twee ketens uit ARCHITECTURE.md: netplay opzetten en telefoon-joystick.',
+      include: { layers: ['application', 'technology'] },
+      scenario: 'netplay_opzetten' },
+    { id: 'journeys', label: 'Journeys',
+      description: 'De weg van host en gast door de schermen, zoals in docs/screens/README.md.',
+      include: { layers: ['business', 'application'] },
+      scenario: 'journey_samen_spelen' }
+  ],
+  scenarios: [
+    { id: 'netplay_opzetten', label: 'Netplay opzetten (host en gast)',
+      steps: [
+        { rel: 'a13', narrative: 'Host drukt Start netplay: pair-create levert drie codes' },
+        { rel: 'a12', narrative: 'API schrijft de sessie met gastcode en twee joystickcodes' },
+        { rel: 'b02', narrative: 'Gast tikt de gastcode in: pair-join' },
+        { rel: 'a14', narrative: 'SDP en ICE gaan over rtc-signal-send/-poll; server ziet alleen handshake' },
+        { rel: 'a16', narrative: 'DataChannels ctl (betrouwbaar) en in (onbetrouwbaar) komen open' },
+        { rel: 'a06', narrative: 'Host stuurt hello met core-versie, regio en CRC van BIOS en cartridge' },
+        { rel: 't08', narrative: 'Gast haalt dezelfde cartridge ZELF op bij archive.org, op CRC' },
+        { rel: 'a17', narrative: 'Beide kanten cold-resetten dezelfde wasm-core: bit-identiek startpunt' },
+        { rel: 'a02', narrative: 'Lockstep loopt: invoer per frame, state-hash elke 60 frames' }
+      ] },
+    { id: 'telefoon_joystick', label: 'Telefoon-joystick tot bij de gast',
+      steps: [
+        { rel: 't05', narrative: 'Telefoon tikt joystickcode P2 in: ctrl-join, slot volgt uit de code' },
+        { rel: 'a12', narrative: 'API legt de controller vast op slot 1' },
+        { rel: 'a15', narrative: 'Host pollt ctrl-poll en zet de stand in S.joyCtrl[1]' },
+        { rel: 'a01', narrative: 'pushJoy OR-t telefoon, toetsenbord en gamepad tot een stand per speler' },
+        { rel: 'a02', narrative: 'Netplay plant die stand op een frame en stuurt hem mee' },
+        { rel: 'a16', narrative: 'Gast voert hetzelfde frame uit met dezelfde stand: hij ziet de telefoon' }
+      ] },
+    { id: 'journey_samen_spelen', label: 'Journey: van openen tot samen spelen',
+      steps: [
+        { rel: 't02', narrative: 'Host opent /videopac/ — netplay is de gewone versie' },
+        { rel: 'a06', narrative: 'Kiest een spel uit de GAMES-lijst (of laadt een eigen bestand)' },
+        { rel: 'b01', narrative: 'Start sessie: drie codes verschijnen, elk met een eigen rol' },
+        { rel: 'b02', narrative: 'Gast opent dezelfde pagina en tikt de gastcode in' },
+        { rel: 'b05', narrative: 'Beide machines starten gelijk; de gast hoeft niets te kiezen' },
+        { rel: 'b06', narrative: 'Optioneel koppelt een telefoon met een joystickcode' },
+        { rel: 'b04', narrative: 'Samen spelen: invoer over de lijn, beeld en geluid lokaal' }
+      ] }
+  ]
+};
+
+/* ============================================================
+ * STATE
+ * ============================================================ */
+let MODEL = clone(DEFAULT_MODEL);
+let currentViewId = 'conceptueel';
+let currentNotation = 'archimate';
+let currentHeat = 'off'; // off | criticality | completion | cost — actief alleen in Dragon1-modus
+let currentRenderMode = 'blueprint'; // blueprint | sketch — actief alleen in Dragon1-modus
+let animState = {
+  playing: false, loop: true, stepIdx: 0, scenarioId: null,
+  speedMs: 1200, rafHandle: null, lastTickAt: 0, tokenEl: null
+};
+
+/* ============================================================
+ * UTIL
+ * ============================================================ */
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function el(tag, attrs) {
+  const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  if (attrs) for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function log(msg) {
+  const lg = document.getElementById('log');
+  lg.classList.remove('empty');
+  lg.textContent = msg;
+}
+function clearLog() {
+  const lg = document.getElementById('log');
+  lg.classList.add('empty');
+  lg.textContent = '';
+}
+function elemById(id) { return MODEL.elements.find(e => e.id === id); }
+function relById(id) { return MODEL.relations.find(r => r.id === id); }
+function viewById(id) { return MODEL.views.find(v => v.id === id); }
+function scenarioById(id) { return (MODEL.scenarios || []).find(s => s.id === id); }
+function typeLayer(type) { return TYPE_LAYER[(type || '').toLowerCase()] || 'other'; }
+
+/* ============================================================
+ * RENDER
+ * ============================================================ */
+function render() {
+  const svg = document.getElementById('canvas');
+  svg.innerHTML = '';
+  svg.classList.remove('notation-archimate', 'notation-dragon1', 'sketch-mode');
+  svg.classList.add('notation-' + currentNotation);
+  if (currentNotation === 'dragon1' && currentRenderMode === 'sketch') {
+    svg.classList.add('sketch-mode');
+  }
+
+  // 1. defs (markers + roughen-filter)
+  svg.appendChild(buildDefs());
+
+  // 2. bepaal welke elementen + relaties zichtbaar zijn in deze view
+  const view = viewById(currentViewId);
+  const visibleElems = filterElementsForView(view);
+  const visibleIds = new Set(visibleElems.map(e => e.id));
+  const visibleRels = MODEL.relations.filter(r =>
+    visibleIds.has(r.from) && visibleIds.has(r.to)
+  );
+
+  // 2b. Landscape-backdrop — alleen Dragon1 + view = conceptueel/logisch (advies-keuze 3)
+  const backdropViews = new Set(['conceptueel', 'logisch']);
+  if (currentNotation === 'dragon1' && backdropViews.has(currentViewId)) {
+    svg.appendChild(buildLandscapeBackdrop(view));
+  }
+
+  // 3. render relaties (lager z-order)
+  const relsGroup = el('g', { id: 'relations-layer' });
+  visibleRels.forEach(r => relsGroup.appendChild(renderRelation(r)));
+  svg.appendChild(relsGroup);
+
+  // 4. render elementen
+  const elemsGroup = el('g', { id: 'elements-layer' });
+  visibleElems.forEach(e => elemsGroup.appendChild(renderElement(e)));
+  svg.appendChild(elemsGroup);
+
+  // 5. animatie-token-laag (apart, bovenop)
+  const animLayer = el('g', { id: 'animation-layer' });
+  svg.appendChild(animLayer);
+
+  // 6. info-paneel + legenda updaten
+  updateInfo(view, visibleElems.length, visibleRels.length);
+  updateLegend(visibleElems);
+
+  // 7. animatie controls aan/uit
+  const animBox = document.getElementById('animControls');
+  if (view.scenario) {
+    animBox.classList.add('visible');
+    document.getElementById('scenarioLabel').textContent =
+      ' scenario: ' + (scenarioById(view.scenario) || {label: '?'}).label;
+    animState.scenarioId = view.scenario;
+    animState.stepIdx = 0;
+  } else {
+    animBox.classList.remove('visible');
+    stopAnimation();
+  }
+
+  // 8. de view op maat maken. Elke view toont een andere doorsnede van het model en
+  //    die doorsnede ligt zelden in de linkerbovenhoek: bij een technology-view staat
+  //    alles onderaan. Een vaste viewBox laat de helft dan buiten beeld vallen.
+  //    Deterministisch: dit leest alleen de al getekende geometrie, geen tijd of toeval.
+  fitViewBox(svg);
+}
+
+function fitViewBox(svg) {
+  const layers = svg.querySelector('#elements-layer');
+  if (!layers) return;
+  let box;
+  try { box = svg.getBBox(); } catch (e) { return; }
+  if (!box || !box.width || !box.height) return;
+  const pad = 40;
+  const x = Math.floor(box.x - pad), y = Math.floor(box.y - pad);
+  const w = Math.ceil(box.width + pad * 2), h = Math.ceil(box.height + pad * 2);
+  svg.setAttribute('viewBox', x + ' ' + y + ' ' + w + ' ' + h);
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+}
+
+function filterElementsForView(view) {
+  if (!view) return MODEL.elements;
+  const layers = (view.include && view.include.layers) || null;
+  const ids = (view.include && view.include.elements) || null;
+  return MODEL.elements.filter(e => {
+    if (ids && !ids.includes(e.id)) return false;
+    if (layers && !layers.includes(typeLayer(e.type))) return false;
+    return true;
+  });
+}
+
+function buildDefs() {
+  const defs = el('defs');
+  // arrow
+  const m1 = el('marker', {
+    id: 'arrow', viewBox: '0 0 10 10', refX: '9', refY: '5',
+    markerWidth: '8', markerHeight: '8', orient: 'auto-start-reverse'
+  });
+  m1.appendChild(el('path', { d: 'M0,0 L10,5 L0,10 z', fill: 'var(--c-arrow)' }));
+  defs.appendChild(m1);
+  // arrow-hollow
+  const m2 = el('marker', {
+    id: 'arrow-hollow', viewBox: '0 0 12 12', refX: '11', refY: '6',
+    markerWidth: '10', markerHeight: '10', orient: 'auto-start-reverse'
+  });
+  m2.appendChild(el('path', {
+    d: 'M0,0 L12,6 L0,12 z', fill: '#fff',
+    stroke: 'var(--c-arrow)', 'stroke-width': '1.5'
+  }));
+  defs.appendChild(m2);
+  // dot
+  const m3 = el('marker', {
+    id: 'dot', viewBox: '0 0 6 6', refX: '3', refY: '3',
+    markerWidth: '6', markerHeight: '6'
+  });
+  m3.appendChild(el('circle', { cx: '3', cy: '3', r: '2.5', fill: 'var(--c-arrow)' }));
+  defs.appendChild(m3);
+  // diamond
+  const m4 = el('marker', {
+    id: 'diamond', viewBox: '0 0 12 8', refX: '0', refY: '4',
+    markerWidth: '10', markerHeight: '8', orient: 'auto'
+  });
+  m4.appendChild(el('path', { d: 'M0,4 L6,0 L12,4 L6,8 z', fill: 'var(--c-arrow)' }));
+  defs.appendChild(m4);
+  // Roughen filter — Dragon1 sketch-mode. Fixed seed=42 voor determinisme.
+  // Bron: docs/DRAGON1_VISUAL_LANGUAGE.md §4 (sketch / artist-impression).
+  const fRough = el('filter', {
+    id: 'roughen', x: '-5%', y: '-5%', width: '110%', height: '110%'
+  });
+  fRough.appendChild(el('feTurbulence', {
+    type: 'fractalNoise', baseFrequency: '0.035', numOctaves: '2', seed: '42', result: 'noise'
+  }));
+  fRough.appendChild(el('feDisplacementMap', {
+    in: 'SourceGraphic', in2: 'noise', scale: '2.5'
+  }));
+  defs.appendChild(fRough);
+  return defs;
+}
+
+/* ============================================================
+ * LANDSCAPE-BACKDROP — Dragon1's "principes-op-landschap"
+ * Bron: docs/DRAGON1_VISUAL_LANGUAGE.md §2.
+ * Tekent semi-transparante horizontale banden per zichtbare laag,
+ * met laag-label rechtsachter (verbleekt) als "context".
+ * View-afhankelijk: alleen Conceptueel + Logisch (advies-keuze 3).
+ * ============================================================ */
+const LAYER_BANDS = {
+  // laag -> { y, height } (kalibratie op DEFAULT_MODEL pos.y waardes)
+  motivation:  { y:  20, h: 200 },
+  business:    { y: 220, h: 180 },
+  application: { y: 420, h: 180 },
+  technology:  { y: 620, h: 280 }
+};
+function buildLandscapeBackdrop(view) {
+  const g = el('g', { class: 'landscape-backdrop' });
+  if (!view) return g;
+  // welke lagen toont deze view? gebruik dezelfde include als filterElementsForView.
+  const layers = (view.include && view.include.layers) || [];
+  layers.forEach(ln => {
+    const band = LAYER_BANDS[ln];
+    if (!band) return;
+    const fill = LAYER_FILL[ln] || LAYER_FILL.other;
+    g.appendChild(el('rect', {
+      x: 0, y: band.y, width: 1300, height: band.h, fill: fill
+    }));
+    const txt = el('text', {
+      x: 1280, y: band.y + 36, 'text-anchor': 'end'
+    });
+    txt.textContent = (LAYER_LABEL[ln] || ln).toUpperCase();
+    g.appendChild(txt);
+  });
+  return g;
+}
+
+/* ============================================================
+ * ELEMENT RENDERING — notatie-specifiek
+ * ============================================================ */
+function renderElement(e) {
+  if (currentNotation === 'dragon1') return renderElementDragon1(e);
+  return renderElementArchiMate(e);
+}
+
+/* ArchiMate-modus: rechte rechthoek + «Type»-banner + icoon-rechtsboven */
+function renderElementArchiMate(e) {
+  const W = 160, H = 64;
+  const [x, y] = e.pos || [0, 0];
+  const layer = typeLayer(e.type);
+  const fill = e.fill || LAYER_FILL[layer] || LAYER_FILL.other;
+  const stroke = e.stroke || LAYER_STROKE[layer] || LAYER_STROKE.other;
+  const g = el('g', { 'data-id': e.id, transform: 'translate(' + x + ',' + y + ')' });
+  // banner-strook bovenaan voor het type
+  const rect = el('rect', {
+    class: 'elem-rect', x: 0, y: 0, width: W, height: H,
+    style: 'fill:' + fill + ';stroke:' + stroke
+  });
+  g.appendChild(rect);
+  // type-banner
+  const banner = el('text', {
+    class: 'elem-type-banner', x: 6, y: 12
+  });
+  banner.textContent = '«' + (TYPE_BANNER[(e.type || '').toLowerCase()] || e.type || '') + '»';
+  g.appendChild(banner);
+  // icoon rechtsboven (16x16)
+  g.appendChild(renderTypeIcon(e.type, W - 22, 4, 16));
+  // label
+  const lbl = el('text', { class: 'elem-label', x: W / 2, y: H / 2 + 10, 'text-anchor': 'middle' });
+  lbl.textContent = e.label || e.id;
+  g.appendChild(lbl);
+  return g;
+}
+
+/* ============================================================
+ * HEAT — data-driven kleur-interpolatie (Dragon1-eigen)
+ * Bron: docs/DRAGON1_VISUAL_LANGUAGE.md §3 (data-driven dynamic styling)
+ * Mapping per attribuut:
+ *   criticality, cost  → 0 = groen (laag), 1 = rood (hoog)
+ *   completion         → 0 = rood  (open), 1 = groen (klaar) — geïnverteerd
+ * ============================================================ */
+function heatValue(e, mode) {
+  if (mode === 'off') return null;
+  const v = e[mode];
+  if (typeof v !== 'number') return null;
+  // completion: 1.0 = klaar = groen → inverteer naar "hoeveel rood"
+  return mode === 'completion' ? (1 - v) : v;
+}
+function heatToColor(t) {
+  // t = 0 (groen) → 0.5 (geel) → 1 (rood). Lineaire RGB-interpolatie.
+  if (t == null) return null;
+  t = Math.max(0, Math.min(1, t));
+  const stops = [
+    [34, 197, 94],   // --heat-low  #22c55e
+    [234, 179, 8],   // --heat-mid  #eab308
+    [239, 68, 68]    // --heat-high #ef4444
+  ];
+  const seg = t < 0.5 ? 0 : 1;
+  const localT = seg === 0 ? t * 2 : (t - 0.5) * 2;
+  const a = stops[seg], b = stops[seg + 1];
+  const r = Math.round(a[0] + (b[0] - a[0]) * localT);
+  const g = Math.round(a[1] + (b[1] - a[1]) * localT);
+  const bl = Math.round(a[2] + (b[2] - a[2]) * localT);
+  return 'rgb(' + r + ',' + g + ',' + bl + ')';
+}
+
+/* ============================================================
+ * Dragon1-modus: ovaal-shape per type, data-driven heat-fill,
+ * geen banner, geen icoon-rechtsboven.
+ * Bron: docs/DRAGON1_VISUAL_LANGUAGE.md §1 (ovaal-primitief)
+ * ============================================================ */
+function renderElementDragon1(e) {
+  const W = 160, H = 64;
+  const [x, y] = e.pos || [0, 0];
+  const layer = typeLayer(e.type);
+  const layerFill = e.fill || LAYER_FILL[layer] || LAYER_FILL.other;
+  const stroke = e.stroke || LAYER_STROKE[layer] || LAYER_STROKE.other;
+  const t = (e.type || '').toLowerCase();
+
+  // Heat-fill heeft voorrang op layer-fill (alleen in Dragon1-modus)
+  const heatT = heatValue(e, currentHeat);
+  const heatFill = heatToColor(heatT);
+  const fill = heatFill || layerFill;
+
+  const g = el('g', {
+    'data-id': e.id,
+    'data-criticality': e.criticality != null ? e.criticality : '',
+    'data-completion':  e.completion  != null ? e.completion  : '',
+    'data-cost':        e.cost        != null ? e.cost        : '',
+    transform: 'translate(' + x + ',' + y + ')'
+  });
+
+  const cx = W / 2, cy = H / 2;
+  let shape;
+
+  if (t === 'communicationnetwork' || t === 'path') {
+    // dunne, langwerpige ellips (signaal-kanaal-suggestie)
+    shape = el('ellipse', {
+      class: 'elem-shape',
+      cx: cx, cy: cy, rx: W / 2 - 4, ry: 12,
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8'
+    });
+  } else if (t === 'node' || t === 'device' || t === 'equipment') {
+    // ovaal met depth-shadow (Dragon1's "concept met substantie")
+    shape = el('g');
+    shape.appendChild(el('ellipse', {
+      cx: cx + 6, cy: cy + 6, rx: W / 2 - 6, ry: H / 2 - 4,
+      fill: stroke, opacity: '0.22'
+    }));
+    shape.appendChild(el('ellipse', {
+      class: 'elem-shape',
+      cx: cx, cy: cy, rx: W / 2 - 6, ry: H / 2 - 4,
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8'
+    }));
+  } else if (t === 'businessactor' || t === 'person' || t === 'stakeholder') {
+    // staande ovaal (persoon-suggestie, geen rechthoek)
+    shape = el('ellipse', {
+      class: 'elem-shape',
+      cx: cx, cy: cy, rx: W / 2 - 18, ry: H / 2 - 2,
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8'
+    });
+  } else if (t === 'dataobject' || t === 'businessobject' || t === 'artifact') {
+    // cilinder-look: bovenkant-ellips + romp + onder-ellips
+    shape = el('g');
+    const rx = W / 2 - 8;
+    shape.appendChild(el('path', {
+      d: 'M ' + (cx - rx) + ',' + cy + ' L ' + (cx - rx) + ',' + (cy + H / 2 - 8) +
+         ' A ' + rx + ' 6 0 0 0 ' + (cx + rx) + ',' + (cy + H / 2 - 8) +
+         ' L ' + (cx + rx) + ',' + cy + ' Z',
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8',
+      class: 'elem-shape'
+    }));
+    shape.appendChild(el('ellipse', {
+      cx: cx, cy: cy, rx: rx, ry: 6,
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8'
+    }));
+  } else {
+    // DEFAULT — pure ovaal-concept (Dragon1's primaire primitief)
+    shape = el('ellipse', {
+      class: 'elem-shape',
+      cx: cx, cy: cy, rx: W / 2 - 4, ry: H / 2 - 2,
+      style: 'fill:' + fill + ';stroke:' + stroke + ';stroke-width:1.8'
+    });
+  }
+  g.appendChild(shape);
+
+  // Label centraal (geen banner, geen icoon-rechtsboven)
+  const lbl = el('text', { class: 'elem-label', x: cx, y: cy + 4, 'text-anchor': 'middle' });
+  lbl.textContent = e.label || e.id;
+  g.appendChild(lbl);
+
+  // Heat-badge rechtsboven (alleen als heat actief én waarde aanwezig)
+  if (heatT != null) {
+    const badge = el('g', { transform: 'translate(' + (W - 14) + ',12)' });
+    badge.appendChild(el('circle', {
+      cx: 0, cy: 0, r: 8,
+      style: 'fill:' + heatFill + ';stroke:#222;stroke-width:0.8'
+    }));
+    const txt = el('text', {
+      x: 0, y: 3, 'text-anchor': 'middle',
+      style: 'font-size:9px;font-weight:600;fill:#fff;pointer-events:none'
+    });
+    txt.textContent = Math.round(heatT * 100);
+    badge.appendChild(txt);
+    g.appendChild(badge);
+  }
+
+  return g;
+}
+
+/* Compacte SVG-icoon per type (16x16). Geen FontAwesome dep. */
+function renderTypeIcon(type, x, y, size) {
+  const t = (type || '').toLowerCase();
+  const g = el('g', { transform: 'translate(' + x + ',' + y + ')' });
+  const stroke = 'var(--c-stroke)';
+  const s = size / 16;
+  let pathD = null;
+  if (t === 'businessactor' || t === 'person')
+    pathD = 'M8 1.5a2.5 2.5 0 1 1 0 5 2.5 2.5 0 0 1 0-5zM2 14c0-3 2.7-5 6-5s6 2 6 5v.5H2V14z';
+  else if (t === 'businessrole')
+    pathD = 'M2 4h12v8H2z M2 4l6 4 6-4';
+  else if (t === 'businessservice' || t === 'applicationservice' || t === 'technologyservice')
+    pathD = 'M2 8a6 6 0 0 1 12 0H2z';
+  else if (t === 'businessprocess' || t === 'applicationprocess')
+    pathD = 'M1 5h9l3 3-3 3H1z';
+  else if (t === 'businessobject' || t === 'dataobject' || t === 'artifact')
+    pathD = 'M2 3h12v10H2z';
+  else if (t === 'applicationcomponent' || t === 'component')
+    pathD = 'M3 3h10v10H3z M1 5h2v2H1z M1 9h2v2H1z';
+  else if (t === 'applicationinterface')
+    pathD = 'M3 8a5 5 0 0 1 10 0 M3 8a5 5 0 0 0 10 0';
+  else if (t === 'node' || t === 'device' || t === 'equipment')
+    pathD = 'M2 5h10v8H2z M2 5l3-3h10v8l-3 3';
+  else if (t === 'communicationnetwork')
+    pathD = 'M2 8h12 M4 6v4 M8 6v4 M12 6v4';
+  else if (t === 'systemsoftware')
+    pathD = 'M3 3h10v10H3z M3 6h10 M3 10h10';
+  else if (t === 'driver')
+    pathD = 'M8 2 L13 7 L10 7 L10 14 L6 14 L6 7 L3 7 z';
+  else if (t === 'goal')
+    pathD = 'M8 2a6 6 0 1 1 0 12 6 6 0 0 1 0-12z M8 5a3 3 0 1 1 0 6 3 3 0 0 1 0-6z';
+  else if (t === 'requirement')
+    pathD = 'M3 2h10v12H3z M5 5h6 M5 8h6 M5 11h4';
+  else if (t === 'stakeholder')
+    pathD = 'M4 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z M12 6a2 2 0 1 1 0-4 2 2 0 0 1 0 4z M8 13a4 4 0 0 0-4-3 M8 13a4 4 0 0 1 4-3';
+  else
+    pathD = 'M2 2h12v12H2z';
+  const p = el('path', {
+    d: pathD, transform: 'scale(' + s + ')',
+    fill: 'none', stroke: stroke, 'stroke-width': '1.2'
+  });
+  g.appendChild(p);
+  return g;
+}
+
+/* ============================================================
+ * RELATIE RENDERING
+ * ============================================================ */
+function renderRelation(r) {
+  const W = 160, H = 64;
+  const from = elemById(r.from), to = elemById(r.to);
+  if (!from || !to) return el('g');
+  const [x1, y1] = from.pos, [x2, y2] = to.pos;
+  // verbind midpoints
+  const cx1 = x1 + W / 2, cy1 = y1 + H / 2;
+  const cx2 = x2 + W / 2, cy2 = y2 + H / 2;
+  const relType = r.type || inferRelType(from.type, to.type);
+  const style = REL_STYLE[relType] || REL_STYLE.flow;
+  const g = el('g', { 'data-rel-id': r.id });
+  const line = el('line', {
+    class: 'rel-line' + (style.dash === '5,4' ? ' dashed' : (style.dash === '2,3' ? ' dotted' : '')),
+    x1: cx1, y1: cy1, x2: cx2, y2: cy2,
+    style: r.stroke ? 'stroke:' + r.stroke : ''
+  });
+  if (style.marker === 'arrow') line.setAttribute('marker-end', 'url(#arrow)');
+  else if (style.marker === 'arrow-hollow') line.setAttribute('marker-end', 'url(#arrow-hollow)');
+  if (style.startMarker === 'dot') line.setAttribute('marker-start', 'url(#dot)');
+  else if (style.startMarker === 'diamond') line.setAttribute('marker-start', 'url(#diamond)');
+  g.appendChild(line);
+  // label
+  if (r.label) {
+    const lx = (cx1 + cx2) / 2, ly = (cy1 + cy2) / 2 - 4;
+    const bg = el('rect', {
+      class: 'rel-label-bg',
+      x: lx - r.label.length * 3.2 - 2, y: ly - 9,
+      width: r.label.length * 6.4 + 4, height: 12
+    });
+    g.appendChild(bg);
+    const txt = el('text', {
+      class: 'rel-label', x: lx, y: ly, 'text-anchor': 'middle'
+    });
+    txt.textContent = r.label;
+    g.appendChild(txt);
+  }
+  return g;
+}
+
+/* ============================================================
+ * INFO + LEGENDA
+ * ============================================================ */
+function updateInfo(view, nElems, nRels) {
+  const info = document.getElementById('info');
+  info.innerHTML =
+    '<b>' + (MODEL.meta.title || 'Untitled') + '</b> &middot; ' +
+    'view: <b>' + (view ? view.label : '?') + '</b> &middot; ' +
+    (view && view.description ? view.description + ' &middot; ' : '') +
+    nElems + ' elementen, ' + nRels + ' relaties &middot; ' +
+    'notatie: <b>' + currentNotation + '</b>';
+}
+
+function updateLegend(elems) {
+  const lg = document.getElementById('legend');
+  lg.innerHTML = '';
+  const layersInUse = new Set(elems.map(e => typeLayer(e.type)));
+  layersInUse.forEach(l => {
+    const item = document.createElement('span');
+    item.className = 'item';
+    item.innerHTML =
+      '<span class="sw" style="background:' + LAYER_FILL[l] + ';border-color:' + LAYER_STROKE[l] + '"></span>' +
+      (LAYER_LABEL[l] || l);
+    lg.appendChild(item);
+  });
+}
+
+/* ============================================================
+ * ANIMATIE — Transacties + Journeys
+ * RAF-loop, deterministisch t.o.v. step-volgorde.
+ * ============================================================ */
+function startAnimation() {
+  const s = scenarioById(animState.scenarioId);
+  if (!s) return;
+  animState.playing = true;
+  animState.lastTickAt = performance.now();
+  if (!animState.tokenEl) {
+    animState.tokenEl = el('circle', { class: 'anim-token', r: 7, cx: 0, cy: 0 });
+    document.getElementById('animation-layer').appendChild(animState.tokenEl);
+  }
+  tickAnimation();
+}
+function stopAnimation() {
+  animState.playing = false;
+  if (animState.rafHandle) cancelAnimationFrame(animState.rafHandle);
+  if (animState.tokenEl && animState.tokenEl.parentNode) {
+    animState.tokenEl.parentNode.removeChild(animState.tokenEl);
+  }
+  animState.tokenEl = null;
+}
+function tickAnimation() {
+  if (!animState.playing) return;
+  const s = scenarioById(animState.scenarioId);
+  if (!s || !s.steps.length) return;
+  const now = performance.now();
+  const elapsed = now - animState.lastTickAt;
+  const t = Math.min(1, elapsed / animState.speedMs);
+  const step = s.steps[animState.stepIdx];
+  const r = relById(step.rel);
+  if (r) {
+    const from = elemById(r.from), to = elemById(r.to);
+    if (from && to) {
+      const W = 160, H = 64;
+      const cx1 = from.pos[0] + W / 2, cy1 = from.pos[1] + H / 2;
+      const cx2 = to.pos[0] + W / 2, cy2 = to.pos[1] + H / 2;
+      const x = cx1 + (cx2 - cx1) * t;
+      const y = cy1 + (cy2 - cy1) * t;
+      if (animState.tokenEl) {
+        animState.tokenEl.setAttribute('cx', x);
+        animState.tokenEl.setAttribute('cy', y);
+      }
+      log('Step ' + (animState.stepIdx + 1) + '/' + s.steps.length + ': ' + (step.narrative || r.id));
+    }
+  }
+  if (t >= 1) {
+    animState.stepIdx++;
+    animState.lastTickAt = now;
+    if (animState.stepIdx >= s.steps.length) {
+      if (animState.loop) {
+        animState.stepIdx = 0;
+      } else {
+        animState.playing = false;
+        return;
+      }
+    }
+  }
+  animState.rafHandle = requestAnimationFrame(tickAnimation);
+}
+function stepAnimation() {
+  const s = scenarioById(animState.scenarioId);
+  if (!s) return;
+  animState.stepIdx = (animState.stepIdx + 1) % s.steps.length;
+  if (!animState.tokenEl) {
+    animState.tokenEl = el('circle', { class: 'anim-token', r: 7, cx: 0, cy: 0 });
+    document.getElementById('animation-layer').appendChild(animState.tokenEl);
+  }
+  const step = s.steps[animState.stepIdx];
+  const r = relById(step.rel);
+  if (r) {
+    const from = elemById(r.from), to = elemById(r.to);
+    if (from && to) {
+      const W = 160, H = 64;
+      const cx2 = to.pos[0] + W / 2, cy2 = to.pos[1] + H / 2;
+      animState.tokenEl.setAttribute('cx', cx2);
+      animState.tokenEl.setAttribute('cy', cy2);
+      log('Step ' + (animState.stepIdx + 1) + '/' + s.steps.length + ': ' + (step.narrative || r.id));
+    }
+  }
+}
+
+/* ============================================================
+ * DSL PARSER — subset DSL-B (PascalType id "Label" { -attrs })
+ * Compatibel met dragon1.com/archi + AModeler /archdsl conventies.
+ * ============================================================ */
+function parseDSL(text) {
+  const m = {
+    meta: { title: '', subtitle: '', language: 'archimate' },
+    elements: [], relations: [], views: [], scenarios: []
+  };
+  const lines = text.split(/\r?\n/);
+  let i = 0, relIdx = 0;
+  function attrParse(body, el) {
+    const re = /-(\w+)\s+(?:=\s+)?(?:"([^"]*)"|([^\s"]+))/g;
+    let mm;
+    while ((mm = re.exec(body)) !== null) {
+      const k = mm[1], v = mm[2] !== undefined ? mm[2] : mm[3];
+      if (k === 'fill') el.fill = v;
+      else if (k === 'stroke') el.stroke = v;
+      else if (k === 'color') el.color = v;
+      else if (k === 'attr') { /* skip generic */ }
+    }
+  }
+  while (i < lines.length) {
+    let raw = lines[i].replace(/(?:^|\s)(?:#|\/\/).*$/, '').trim();
+    if (!raw) { i++; continue; }
+    // set
+    let mm = raw.match(/^set\s+(language|title|subtitle|purpose)\s+(.+)$/i);
+    if (mm) {
+      const k = mm[1].toLowerCase(), v = mm[2].replace(/^"|"$/g, '');
+      m.meta[k] = v; i++; continue;
+    }
+    // pos
+    mm = raw.match(/^pos\s+(\w[\w.-]*)\s+(-?\d+)\s*,\s*(-?\d+)\s*$/);
+    if (mm) {
+      const e = m.elements.find(x => x.id === mm[1]);
+      if (e) e.pos = [parseInt(mm[2], 10), parseInt(mm[3], 10)];
+      i++; continue;
+    }
+    // Viewpoint X "label" { ... }
+    mm = raw.match(/^Viewpoint\s+(\w+)\s+"([^"]+)"\s*(\{)?/);
+    if (mm) {
+      const v = { id: mm[1], label: mm[2], description: '', include: {} };
+      if (mm[3]) {
+        let body = '';
+        while (++i < lines.length) {
+          const l = lines[i];
+          if (/^\s*\}/.test(l)) break;
+          body += l + ' ';
+        }
+        const dm = body.match(/-description\s+"([^"]*)"/);
+        if (dm) v.description = dm[1];
+        const am = body.match(/-attr\s+scenario_default\s*=\s*"([^"]*)"/);
+        if (am) v.scenario = am[1];
+      }
+      m.views.push(v); i++; continue;
+    }
+    // Relatie:  id -> id "label"?  { body }?
+    mm = raw.match(/^(\w[\w.-]*)\s*->\s*(\w[\w.-]*)\s*(?:"([^"]+)")?\s*(\{[^}]*\})?\s*$/);
+    if (mm) {
+      const r = {
+        id: 'r' + String(++relIdx).padStart(2, '0'),
+        from: mm[1], to: mm[2]
+      };
+      if (mm[3]) r.label = mm[3];
+      if (mm[4]) attrParse(mm[4], r);
+      m.relations.push(r); i++; continue;
+    }
+    // Element: PascalType id "Label" { body }?
+    mm = raw.match(/^([A-Z]\w+)\s+(\w[\w.-]*)\s+"([^"]+)"\s*(\{)?/);
+    if (mm) {
+      const e = { id: mm[2], type: mm[1], label: mm[3], pos: [0, 0] };
+      if (mm[4]) {
+        let body = '';
+        while (++i < lines.length) {
+          const l = lines[i];
+          if (/^\s*\}/.test(l)) break;
+          body += l + ' ';
+        }
+        attrParse(body, e);
+      }
+      m.elements.push(e); i++; continue;
+    }
+    i++;
+  }
+  // auto-layout fallback voor elementen zonder pos
+  let autoX = 100, autoY = 100;
+  m.elements.forEach(e => {
+    if (e.pos[0] === 0 && e.pos[1] === 0) {
+      e.pos = [autoX, autoY]; autoX += 200;
+      if (autoX > 1100) { autoX = 100; autoY += 200; }
+    }
+  });
+  // als geen views in DSL: bouw default 3
+  if (m.views.length === 0) {
+    m.views = [
+      { id: 'conceptueel', label: 'Conceptueel', include: { layers: ['motivation','strategy'] } },
+      { id: 'logisch', label: 'Logisch', include: { layers: ['business','application'] } },
+      { id: 'fysiek', label: 'Fysiek', include: { layers: ['technology'] } }
+    ];
+  }
+  return m;
+}
+
+/* ============================================================
+ * DSL SERIALIZER — DSL-B compatibel met Dragon1 + AModeler.
+ * Strict PascalCase, geen :type, alleen shared attrs.
+ * ============================================================ */
+function modelToDSL(m) {
+  const out = [];
+  out.push('# Generated by viewer template v0.1.0 — DSL-B compatible');
+  if (m.meta.language) out.push('set language ' + m.meta.language);
+  if (m.meta.title)    out.push('set title "' + m.meta.title + '"');
+  if (m.meta.subtitle) out.push('set subtitle "' + m.meta.subtitle + '"');
+  out.push('');
+  m.elements.forEach(e => {
+    const attrs = [];
+    if (e.fill)   attrs.push('-fill "' + e.fill + '"');
+    if (e.stroke) attrs.push('-stroke "' + e.stroke + '"');
+    if (attrs.length) {
+      out.push(e.type + ' ' + e.id + ' "' + e.label + '" { ' + attrs.join(' ') + ' }');
+    } else {
+      out.push(e.type + ' ' + e.id + ' "' + e.label + '"');
+    }
+  });
+  out.push('');
+  m.relations.forEach(r => {
+    const attrs = [];
+    if (r.stroke) attrs.push('-stroke "' + r.stroke + '"');
+    let line = r.from + ' -> ' + r.to;
+    if (r.label) line += ' "' + r.label + '"';
+    if (attrs.length) line += ' { ' + attrs.join(' ') + ' }';
+    out.push(line);
+  });
+  if (m.views && m.views.length) {
+    out.push('');
+    m.views.forEach(v => {
+      out.push('Viewpoint ' + v.id + ' "' + v.label + '" {');
+      if (v.description) out.push('  -description "' + v.description + '"');
+      if (v.scenario) out.push('  -attr scenario_default = "' + v.scenario + '"');
+      out.push('}');
+    });
+  }
+  out.push('');
+  m.elements.forEach(e => {
+    if (e.pos && (e.pos[0] || e.pos[1])) {
+      out.push('pos ' + e.id + ' ' + e.pos[0] + ', ' + e.pos[1]);
+    }
+  });
+  return out.join('\n');
+}
+
+/* ============================================================
+ * .archimate placeholder — Archi v5 XML schrijver (minimum)
+ * ============================================================ */
+function modelToArchimate(m) {
+  // Minimal Archi v5 archimate-model XML.
+  const xmlEsc = s => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                              .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+  xml += '<archimate:model xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ';
+  xml += 'xmlns:archimate="http://www.archimatetool.com/archimate" name="' + xmlEsc(m.meta.title || 'Model') + '">\n';
+  const folders = {
+    motivation: 'motivation', strategy: 'strategy', business: 'business',
+    application: 'application', technology: 'technology',
+    impl: 'implementation_migration', risk: 'other', other: 'other'
+  };
+  const byFolder = {};
+  m.elements.forEach(e => {
+    const f = folders[typeLayer(e.type)] || 'other';
+    (byFolder[f] = byFolder[f] || []).push(e);
+  });
+  Object.keys(byFolder).forEach(folderName => {
+    xml += '  <folder name="' + folderName + '" type="' + folderName + '">\n';
+    byFolder[folderName].forEach(e => {
+      xml += '    <element xsi:type="archimate:' + (TYPE_BANNER[(e.type || '').toLowerCase()] || e.type) +
+             '" name="' + xmlEsc(e.label) + '" id="' + xmlEsc(e.id) + '"/>\n';
+    });
+    xml += '  </folder>\n';
+  });
+  xml += '  <folder name="Relations" type="relations">\n';
+  m.relations.forEach(r => {
+    const from = elemById(r.from), to = elemById(r.to);
+    const type = r.type || inferRelType(from && from.type, to && to.type);
+    xml += '    <element xsi:type="archimate:' + type.charAt(0).toUpperCase() + type.slice(1) +
+           'Relationship" id="' + r.id + '" source="' + r.from + '" target="' + r.to + '"';
+    if (r.label) xml += ' name="' + xmlEsc(r.label) + '"';
+    xml += '/>\n';
+  });
+  xml += '  </folder>\n';
+  xml += '</archimate:model>\n';
+  return xml;
+}
+
+/* ============================================================
+ * IO — download / file-read helpers
+ * ============================================================ */
+function download(filename, content, mime) {
+  const blob = new Blob([content], { type: mime || 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url); }, 100);
+}
+function readFile(input, cb) {
+  const f = input.files && input.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = e => cb(e.target.result, f.name);
+  rd.readAsText(f);
+}
+
+/* ============================================================
+ * INIT + WIRING
+ * ============================================================ */
+function populateViewSelect() {
+  const sel = document.getElementById('viewSelect');
+  sel.innerHTML = '';
+  MODEL.views.forEach(v => {
+    const o = document.createElement('option');
+    o.value = v.id; o.textContent = v.label;
+    sel.appendChild(o);
+  });
+  sel.value = currentViewId;
+}
+
+function init() {
+  document.getElementById('viewer-title').textContent = MODEL.meta.title || 'Architectuur Viewer';
+  populateViewSelect();
+  render();
+
+  // view select
+  document.getElementById('viewSelect').addEventListener('change', e => {
+    currentViewId = e.target.value;
+    stopAnimation();
+    clearLog();
+    render();
+  });
+
+  // notation toggle
+  document.querySelectorAll('#notationToggle button').forEach(b => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('#notationToggle button').forEach(x => x.classList.remove('active'));
+      b.classList.add('active');
+      currentNotation = b.dataset.notation;
+      // Heat-dropdown + sketch-knop alleen actief in Dragon1-modus.
+      // Bij switch naar Dragon1: standaard 'criticality' aan om verschil direct zichtbaar te maken.
+      // Bij switch naar ArchiMate: heat + sketch terug naar uit (statische laag-kleur, geen filter).
+      const heatSel = document.getElementById('heatSelect');
+      const sketchBtn = document.getElementById('btnSketch');
+      if (currentNotation === 'dragon1') {
+        heatSel.disabled = false;
+        sketchBtn.disabled = false;
+        if (currentHeat === 'off') {
+          currentHeat = 'criticality';
+          heatSel.value = 'criticality';
+        }
+      } else {
+        heatSel.disabled = true;
+        sketchBtn.disabled = true;
+        currentHeat = 'off';
+        heatSel.value = 'off';
+        currentRenderMode = 'blueprint';
+        sketchBtn.classList.remove('active');
+      }
+      render();
+    });
+  });
+
+  // heat dropdown
+  document.getElementById('heatSelect').addEventListener('change', e => {
+    currentHeat = e.target.value;
+    render();
+  });
+
+  // sketch toggle (Dragon1-only)
+  document.getElementById('btnSketch').addEventListener('click', e => {
+    if (e.target.disabled) return;
+    currentRenderMode = (currentRenderMode === 'sketch') ? 'blueprint' : 'sketch';
+    e.target.classList.toggle('active', currentRenderMode === 'sketch');
+    render();
+  });
+
+  // anim controls
+  document.getElementById('btnPlay').addEventListener('click', () => {
+    if (!animState.playing) startAnimation();
+  });
+  document.getElementById('btnPause').addEventListener('click', () => {
+    animState.playing = false;
+    if (animState.rafHandle) cancelAnimationFrame(animState.rafHandle);
+  });
+  document.getElementById('btnStep').addEventListener('click', stepAnimation);
+  document.getElementById('btnLoop').addEventListener('click', e => {
+    animState.loop = !animState.loop;
+    e.target.classList.toggle('active', animState.loop);
+  });
+  document.getElementById('speedSlider').addEventListener('input', e => {
+    animState.speedMs = parseInt(e.target.value, 10);
+  });
+
+  // exports
+  document.getElementById('btnExportJson').addEventListener('click', () => {
+    download('model.json', JSON.stringify(MODEL, null, 2), 'application/json');
+  });
+  document.getElementById('btnExportDsl').addEventListener('click', () => {
+    download('model.dsl', modelToDSL(MODEL), 'text/plain');
+  });
+  document.getElementById('btnExportArchimate').addEventListener('click', () => {
+    download('model.archimate', modelToArchimate(MODEL), 'application/xml');
+  });
+  document.getElementById('btnExportSvg').addEventListener('click', () => {
+    const svg = document.getElementById('canvas');
+    const data = '<?xml version="1.0" encoding="UTF-8"?>\n' + svg.outerHTML;
+    download('diagram.svg', data, 'image/svg+xml');
+  });
+
+  // imports
+  document.getElementById('impJson').addEventListener('change', e => {
+    readFile(e.target, txt => {
+      try { MODEL = JSON.parse(txt); afterImport(); }
+      catch (err) { log('JSON import-fout: ' + err.message); }
+    });
+  });
+  document.getElementById('impDsl').addEventListener('change', e => {
+    readFile(e.target, txt => {
+      try { MODEL = parseDSL(txt); afterImport(); }
+      catch (err) { log('DSL parse-fout: ' + err.message); }
+    });
+  });
+  document.getElementById('impArchimate').addEventListener('change', e => {
+    log('.archimate-import: nog niet geïmplementeerd (placeholder). Gebruik .dsl of .json voor nu.');
+  });
+
+  // reset
+  document.getElementById('btnReset').addEventListener('click', () => {
+    MODEL = clone(DEFAULT_MODEL);
+    currentViewId = MODEL.views[0].id;
+    afterImport();
+  });
+}
+
+function afterImport() {
+  currentViewId = (MODEL.views && MODEL.views[0] && MODEL.views[0].id) || 'conceptueel';
+  document.getElementById('viewer-title').textContent = MODEL.meta.title || 'Architectuur Viewer';
+  populateViewSelect();
+  clearLog();
+  render();
+}
+
+init();
+</script>
+
+</body>
+</html>
