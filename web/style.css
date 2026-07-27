@@ -132,3 +132,15 @@ a { color: var(--accent); }
   color: var(--text-dim); font-size: .85em;
 }
 .netstats b { color: var(--text); font-weight: 600; }
+
+/* ---- verwijzingen naar de documentatie (v0.6.0) ---- */
+.doclink {
+  flex: 1 1 200px; min-width: 190px;
+  display: block; padding: 10px 14px;
+  background: var(--kbd-bg); border-radius: var(--card-radius);
+  text-decoration: none; color: var(--text);
+  border: 1px solid transparent;
+}
+.doclink:hover { border-color: var(--accent); }
+.doclink strong { color: var(--accent); }
+.doclink .help { display: block; margin-top: 2px; }

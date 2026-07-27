@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.6.0';
+const BUILD_V = '0.6.1';
 
 /* Basispad-hooks. Sinds v0.5.1 is netplay de gewone versie op /videopac/ en draait
  * de gearchiveerde streamversie DEZE app.js één map dieper (/videopac/stream/) —

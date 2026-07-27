@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tests — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>tests — VideopacHorse_Web</h1>
+<p>Drie suites, één commando:</p>
+<pre>
+VPH_ROMDIR=~/pad/naar/roms ./tests/run.sh
+</pre>
+<p><code>run.sh</code> zet een wegwerpkopie van <code>web/</code> neer met een eigen SQLite-database en start daar <code>php -S</code> op. De productie-database (<code>/var/lib/videopac/pairing.db</code> op HC55) wordt dus nooit aangeraakt — een test mag geen lopende sessie van iemand anders slopen.</p>
+<div class='tablewrap'><table><thead><tr>
+<th>Suite</th>
+<th>Bestand</th>
+<th>Wat het bewijst</th>
+</tr></thead><tbody>
+<tr><td>API</td><td><code>api_test.sh</code></td><td>drie codes per sessie, rol per code (gastcode ≠ joystickcode), één telefoon per plek, gast kan joinen mét twee telefoons, <code>pair-end</code> maakt alle drie de codes dood, en 6 gelijktijdige <code>ctrl-join</code>-verzoeken op dezelfde code leveren precies één winnaar</td></tr>
+<tr><td>/videopac/stream/ (archief)</td><td><code>pairplay_e2e.py</code></td><td>twee echte browsers: gast verbindt terwijl beide joystickplekken bezet zijn, en de host ziet op speler 2 de <strong>gecombineerde</strong> stand 24 = 8 (telefoon) \</td><td>16 (gast)</td></tr>
+<tr><td>/videopac/</td><td><code>netplay_e2e.py</code></td><td>netplay tussen twee browsers: gast haalt de cartridge zélf op (CRC gelijk, niets over de lijn), consoletoets en FIRE van de host lopen mee, en de <strong>state-hash bij hetzelfde framenummer</strong> is aan beide kanten gelijk</td></tr>
+</tbody></table></div>
+<h2>ROM&#x27;s</h2>
+<p>Staan bewust niet in deze repo. <code>VPH_ROMDIR</code> moet <code>o2rom.bin</code> (1024 B, md5 <code>562d5ebf…</code>) en <code>cart14.bin</code> bevatten — Videopac nr 14 <em>Gunfighter</em>, CRC <code>abe368bf</code>, dezelfde bron als de GAMES-lijst. Zonder die map draait alleen de API-suite; de browsersuites melden dat ze overgeslagen zijn (ze slagen niet stilzwijgend).</p>
+<h2>Twee valkuilen die deze tests bewust vermijden</h2>
+<p>1. <strong>Twee lege canvassen zijn ook &quot;gelijk&quot;.</strong> <code>netplay_e2e.py</code> eist eerst dat het beeld    bij de host beweegt; pas daarna telt een gelijk resultaat als bewijs. Een emulator    die stilstaat kan geen groen vinkje meer halen. 2. <strong>Gelijk op de klok ≠ gelijk in de emulatie.</strong> Host en gast mogen enkele frames uit    elkaar lopen; hun canvassen op hetzelfde moment vergelijken geeft dus valse alarmen    én valse zekerheid. De test vergelijkt de state-hash bij hetzelfde <em>framenummer</em>,    uitgelezen via <code>netplay.debug()</code>.</p>
+<p>Voor de emulatiekern zelf (determinisme, desync-detectie, savestate-herstel) is de gate <code>make netcheck</code> in <code>VideopacHorse_Core</code>.</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>tests/README.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

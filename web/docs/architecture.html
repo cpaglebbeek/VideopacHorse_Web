@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architectuur — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>ARCHITECTURE.md — VideopacHorse_Web</h1>
+<h2>Componenten</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Component</th>
+<th>Bestand</th>
+<th>Verantwoordelijkheid</th>
+</tr></thead><tbody>
+<tr><td>Pagina/UI</td><td><code>web/index.html</code></td><td><strong>netplay-pagina</strong> — sinds v0.5.1 de gewone versie op <code>/videopac/</code>: layout, file-pickers (BIOS/ROM), status, hulp</td></tr>
+<tr><td>App-glue</td><td><code>web/app.js</code></td><td>WASM-module laden, frame-loop (requestAnimationFrame), canvas-blit, WebAudio-pump, input-mapping, IndexedDB-opslag</td></tr>
+<tr><td>Telefoon-joystick (internet)</td><td><code>web/app.js</code> (module <code>ctrlPad</code>)</td><td>Host pollt <code>ctrl-poll</code> zolang hij een pairplay-sessie heeft; slot 0/1 → <code>S.joyCtrl[0/1]</code>; dubbele failsafe (<code>age_ms &gt; 3000</code> én watchdog op de poll-route zelf) ⇒ mask 0; statusregel <code>#ctrlStatus</code></td></tr>
+<tr><td>Engine</td><td><code>web/g7000.js</code> + <code>web/g7000.wasm</code></td><td>build-artefact uit VideopacHorse_Core (<code>make wasm</code>)</td></tr>
+<tr><td>Stijl</td><td><code>web/style.css</code></td><td>gedeeld door beide pagina&#x27;s; CSS-variabelen zijn het configuratiepaneel (DESIGN_TOKENS.md)</td></tr>
+<tr><td>Netplay-module</td><td><code>web/netplay.js</code></td><td>lockstep-emulatie aan beide kanten i.p.v. videostream; levert dezelfde vorm als <code>pairPlay</code> zodat app.js ongewijzigd blijft</td></tr>
+<tr><td>Archief: streamversie</td><td><code>web/stream/{index.html,pairplay.js}</code></td><td>de oude 🎭 Samen spelen-variant op <code>/videopac/stream/</code>; hergebruikt <code>../app.js</code> en <code>../g7000.*</code> via <code>window.VPH_BASE</code>/<code>VPH_API</code></td></tr>
+<tr><td>Doorverwijzing</td><td><code>web/2/index.html</code></td><td><code>/videopac/2/</code> → <code>/videopac/</code>; netplay is verhuisd, maar die URL staat in docs en bladwijzers</td></tr>
+<tr><td>Build</td><td><code>build.sh</code></td><td>core bouwen + artefacten kopiëren + cache-busters van BEIDE pagina&#x27;s</td></tr>
+<tr><td>Tests</td><td><code>tests/run.sh</code></td><td>wegwerpserver + API-suite + twee browsersuites (<code>tests/README.md</code>)</td></tr>
+<tr><td>Architectuurplaat</td><td><code>architectuur/VideopacHorse_Web_viewer.html</code></td><td>standalone viewer met 5 views (Conceptueel/Logisch/Fysiek/Transacties/Journeys), animatie op de twee scenario&#x27;s, ArchiMate ↔ Dragon1-switch; bron-DSL ernaast als <code>VideopacHorse_Web_archdsl.dsl</code></td></tr>
+<tr><td>Vastlegging</td><td><code>docs/PRINCIPLES.md</code>, <code>docs/DEPENDENCIES.md</code>, <code>docs/DUPLICATES.md</code>, <code>docs/screens/</code>, <code>CHANGELOG.md</code></td><td>het waarom, de oorzaak-gevolgketen, geregistreerde duplicatie, schermreferenties en de releasehistorie</td></tr>
+<tr><td>Gepubliceerde docs</td><td><code>web/docs/</code> (build-artefact)</td><td><code>/videopac/docs/</code> — dezelfde markdown, gerenderd door <code>tools/render_docs.py</code> vanuit <code>build.sh</code>. Nooit met de hand bijwerken</td></tr>
+<tr><td>Gepubliceerde plaat</td><td><code>web/architectuur/</code> (build-artefact)</td><td><code>/videopac/architectuur/</code> — kopie van de viewer met de versie ingevuld op de <code>@VERSION@</code>-marker</td></tr>
+</tbody></table></div>
+<h2>Data-flow</h2>
+<p>file-picker → ArrayBuffer → IndexedDB (persist) → <code>g7k_load_bios/cart</code> (WASM-heap) → per rAF-tick <code>g7k_run_frame</code> → framebuffer (HEAPU32) → <code>putImageData</code>/canvas → <code>g7k_audio_read</code> → WebAudio ringbuffer. Input: keydown/keyup + Gamepad API → <code>g7k_joystick_set</code>/<code>g7k_key_set</code>.</p>
+<p>Telefoon-joystick: geen Bluetooth meer. De telefoon is een gewone HTTPS-client van de pairing-API en koppelt met een <strong>joystickcode</strong>; de host haalt de maskers op met <code>ctrl-poll</code>. Zie &quot;Controller-protocol&quot; hieronder.</p>
+<h2>Drie codes per sessie (v0.5.0)</h2>
+<p><code>pair-create</code> levert er drie, elk voor precies één plek:</p>
+<div class='tablewrap'><table><thead><tr>
+<th>Code</th>
+<th>Endpoint</th>
+<th>Wie</th>
+<th>Max</th>
+</tr></thead><tbody>
+<tr><td><code>code</code> (gastcode)</td><td><code>pair-join</code></td><td>medespeler op afstand (WebRTC) — speler 2</td><td>1</td></tr>
+<tr><td><code>ctrl_code_p1</code></td><td><code>ctrl-join</code></td><td>telefoon op speler 1, host-kant</td><td>1</td></tr>
+<tr><td><code>ctrl_code_p2</code></td><td><code>ctrl-join</code></td><td>telefoon op speler 2, host-kant</td><td>1</td></tr>
+<tr><td><code>ctrl_code_guest</code></td><td><code>ctrl-join</code></td><td>telefoon aan de <strong>gast-kant</strong> (v0.6.0) — pas uitgeleverd bij <code>pair-join</code></td><td>1</td></tr>
+</tbody></table></div>
+<p>Sinds v0.6.0 hebben controllers een <code>owner</code> (<code>host</code> of <code>guest</code>) en pollt elke kant alleen zijn eigen telefoons. Slot 1 kan daardoor twee rijen hebben — één per kant — en dat is geen dubbele bezetting maar hetzelfde OR-model: beide dragen bij aan speler 2. De gast-joystick werkt alleen in netplay; in de gearchiveerde streamversie draait bij de gast geen machine om die invoer op toe te passen.</p>
+<p>De rol zit dus in de code; de server wijst niets meer toe. Daarmee vervalt de kruisvalidatie tussen <code>pair-join</code> en <code>ctrl-join</code> die in v0.4.0 nodig was (BUG-009): er valt niets dubbel te bezetten. Wat overblijft is één afspraak, en die is dezelfde als voor toetsenbord en gamepad: <strong>bronnen op dezelfde speler worden ge-OR&#x27;d.</strong> Gast en telefoon-P2 sluiten elkaar niet uit maar tellen op. <code>guestOwnsPlayer2()</code> — de functie die de gast exclusief maakte — is daarmee verdwenen.</p>
+<p>Migratie: sessies uit v0.4.x houden lege joystickcodes en verlopen vanzelf; hun telefoons kunnen niet opnieuw koppelen. De DB-migratie is idempotent en draait bij het eerste verzoek na de deploy (<code>PRAGMA table_info</code> + <code>ALTER TABLE</code>).</p>
+<h2>Netplay — /videopac/ (v0.5.0, hoofdversie sinds v0.5.1)</h2>
+<p>Samen spelen gaat sinds v0.5.1 standaard via netplay; de streamversie is gearchiveerd op <code>/videopac/stream/</code> en krijgt geen nieuwe functies meer. Het verschil:</p>
+<div class='tablewrap'><table><thead><tr>
+<th></th>
+<th><code>/videopac/stream/</code> (archief)</th>
+<th><code>/videopac/</code> (nu)</th>
+</tr></thead><tbody>
+<tr><td>Wie emuleert</td><td>alleen de host</td><td><strong>beide kanten</strong></td></tr>
+<tr><td>Over de lijn</td><td>H.264-videostream + audio (~1-3 Mbit/s)</td><td>invoer per frame (~50 byte/s)</td></tr>
+<tr><td>Beeld bij de gast</td><td>gecomprimeerde video</td><td>eigen framebuffer, scherp</td></tr>
+<tr><td>Geluid bij de gast</td><td>stream van de host</td><td>eigen emulatie</td></tr>
+<tr><td>Kosten van hapering</td><td>beeld schokt/blokt</td><td>beeld staat stil tot de invoer er is</td></tr>
+</tbody></table></div>
+<p>Werking: bij het verbinden stuurt de host een handshake met core-versie, regio en de CRC&#x27;s van BIOS en cartridge. De gast haalt die bestanden <strong>zelf</strong> op (IndexedDB-cache of dezelfde archive.org-bron als de GAMES-lijst) — er gaan geen ROM-bytes over de lijn, tenzij de host een bestand speelt dat nergens publiek staat; dan biedt hij het aan met een expliciete melding in beeld.</p>
+<p>Daarna delay-based lockstep: elke kant plant zijn invoer <code>delay</code> frames vooruit (start 4, past zich aan de gemeten RTT aan, gaat alleen omhoog — omlaag zou invoer plannen op een frame dat de ander al draaide). Invoer gaat over een <strong>onbetrouwbaar</strong> DataChannel (<code>ordered:false, maxRetransmits:0</code>) met de laatste 10 frames als redundantie; besturingsverkeer, savestates en hashes over een betrouwbaar kanaal. Beide kanten rekenen speler 1 = host-bijdrage en speler 2 = host-bijdrage | gast- bijdrage, dus een telefoon op de P2-joystickcode werkt bij de gast net zo goed door.</p>
+<p>Onderbrekingen: browsers bevriezen <code>requestAnimationFrame</code> in een tabblad dat niet zichtbaar is. De emulatie van die kant staat dan stil en de lockstep laat de ander netjes meewachten — technisch precies goed, maar zonder uitleg leest een stilstaand beeld als een vastloper. Daarom meldt elke kant zijn zichtbaarheid (<code>away</code>) en verschijnt na 1,5 s wachten &quot;wachten op je medespeler…&quot;. Bij terugkeer loopt het door zonder resync: niemand is doorgelopen, dus er is niets in te halen.</p>
+<p>Framesnelheid: de teller in beeld toont tijdens netplay de gemeten <strong>emulatie</strong>snelheid, niet het aantal rAF-ticks. Die twee lopen uiteen omdat één tick meerdere frames mag inhalen (tot <code>MAX_CATCHUP</code>, met een klem van 100 ms op de accumulator). Gemeten op HC55 met twee losse browsers: 44-49 van de 50 PAL-frames per seconde.</p>
+<p>Desync-bewaking: elke 60 frames hasht elke kant zijn volledige savestate (FNV-1a). De gast stuurt die naar de host; bij verschil stuurt de host zijn savestate terug en zet de gast zichzelf bij. Bewijs dat het model klopt: <code>VideopacHorse_Core</code> heeft <code>make netcheck</code> (<code>tools/g7k_netplay_check.c</code>) — determinisme, detectie én herstel, getest via dezelfde API-aanroepen die de frontend doet.</p>
+<p><strong>Verwijderd in v0.4.0-Rusch:</strong> de Web-Bluetooth-route (<code>bleJoy</code>, knop <code>#btnBleJoy</code>, statusblok <code>#bleStatus</code>, service <code>7a0b1000-…</code>). De tegenhanger bestaat niet meer — <code>VideopacHorse_Joystick</code> 0.4.0 heeft <code>BleJoystickServer.kt</code> en alle Bluetooth-permissies laten vallen — dus die ~200 regels waren onbereikbare code die als levend contract gedocumenteerd stond. Bijkomend voordeel: de telefoon-joystick werkt nu in élke browser, niet alleen Chromium.</p>
+<h2>pairPlay — 🎭 Samen spelen (v0.3.0)</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Onderdeel</th>
+<th>Bestand</th>
+<th>Rol</th>
+</tr></thead><tbody>
+<tr><td>Pairing/signaling-API</td><td><code>web/api/index.php</code></td><td>PHP 8.3 + SQLite (<code>/var/lib/videopac/pairing.db</code>, WAL, buiten webroot): <code>pair-create</code> (6-tekens code A-Z2-9) / <code>pair-join</code> / <code>rtc-signal-send</code> / <code>rtc-signal-poll</code> (poll-and-delete, anti-spam 50/doel, sessie-TTL 4 uur, getrottelde GC). Sinds v0.4.0 ook de controller-endpoints (zie hieronder). Patroon: iCt_Horse clipboard-api (eigen bouwblok).</td></tr>
+<tr><td>WebRTC-module</td><td><code>web/pairplay.js</code></td><td>Host: <code>canvas.captureStream(50)</code> + WebAudio-tap (<code>createMediaStreamDestination</code> naast de speaker-route) + DataChannel &quot;input&quot;; gast: fullscreen <code>&lt;video&gt;</code> + input → DataChannel. STUN-only (Google), ICE-trickle met queue, bye/disconnect → failsafe mask 0.</td></tr>
+<tr><td>Input-route</td><td><code>web/app.js</code></td><td>Gast-input (WASD/gamepad) gaat via DataChannel; host ontvangt in <code>S.joyPeer[1]</code> en OR-t mee in <code>pushJoy</code> (bronnen overschrijven elkaar nooit).</td></tr>
+</tbody></table></div>
+<p>Bij verbinden (v0.3.1): de host doet automatisch een <strong>power-cycle</strong> en start de emulator, zodat beide spelers bij hetzelfde beginscherm beginnen; zolang de sessie staat is <strong>speler 2 exclusief van de gast</strong> (<code>guestOwnsPlayer2()</code> dempt lokale WASD/gamepad-2 op de host) en de gast mag zowel WASD als de pijltjes gebruiken.</p>
+<p><strong>Levensduur van een sessie (v0.4.0-Rusch, gewijzigd).</strong> Een sessie is niet langer &quot;pairen of niets&quot;: dezelfde code koppelt telefoon-joysticks, dus een sessie <strong>zonder</strong> WebRTC-gast is het hoofdscenario. Daarom:</p>
+<ul>
+<li>er is <strong>geen automatische afbraak</strong> meer. Na 10 minuten zonder gast verandert alleen</li>
+</ul>
+<p>  de melding (&quot;nog geen gast — sessie blijft actief voor telefoon-joysticks&quot;);</p>
+<ul>
+<li>valt de gast weg (<code>connectionState</code> failed/disconnected/closed of een <code>bye</code>), dan wordt</li>
+</ul>
+<p>  alléén de WebRTC-helft opgeruimd (<code>closePeer</code>) en staat de host meteen weer klaar voor   een nieuwe gast (<code>rearmHost</code>) — de code en de telefoons blijven ongemoeid;</p>
+<ul>
+<li>de host beëindigt de sessie zelf met <strong>⏹ Stop sessie</strong>. Die knop is actief zodra er een</li>
+</ul>
+<p>  sessie is (<code>getStatus().active</code>), niet pas bij een verbonden gast;</p>
+<ul>
+<li>stoppen roept <code>pair-end</code> aan: de serversessie, de controllers en de signalen gaan weg.</li>
+</ul>
+<p>  Zonder dat endpoint bleef de sessie tot 4 uur leven — telefoons bleven input posten die   niemand ophaalde en de zichtbare code bleef al die tijd een geldig toegangsbewijs;</p>
+<ul>
+<li><strong>herladen van de hostpagina</strong> (F5) herstelt de sessie uit <code>localStorage</code></li>
+</ul>
+<p>  (<code>pairPlay.restore()</code>), zodat gekoppelde telefoons blijven werken. Vóór v0.4.0-Rusch werd   die sessie wél weggeschreven maar nooit teruggelezen (dode code) en moest de gebruiker   opnieuw starten — met een nieuwe code en dus opnieuw koppelen van elke telefoon.</p>
+<p>Beperkingen (bewust, gedocumenteerd): STUN-only (geen TURN — corporate NAT kan falen); gast-invoer is altijd speler 2; er gaat nooit ROM/BIOS over de lijn, alleen beeld/geluid/input; een gast die zijn pagina herlaadt kan niet terugkomen op dezelfde sessie (zijn gast-slot blijft geclaimd) — de host stopt en start dan opnieuw.</p>
+<h2>Controller-protocol — telefoon-joystick over internet (API v0.4.0, bindend)</h2>
+<p>Dezelfde 6-tekens sessiecode als 🎭 Samen spelen; een telefoon (<code>VideopacHorse_Joystick</code>) joint als <strong>controller</strong> en levert 5 bits per speler. Geen WebRTC, geen media — alleen HTTP POST/JSON op <code>https://horsecloud55.ddns.net/videopac/api/</code>.</p>
+<div class='tablewrap'><table><thead><tr>
+<th>Endpoint</th>
+<th>Verzoek</th>
+<th>Antwoord</th>
+<th>Fouten</th>
+</tr></thead><tbody>
+<tr><td><code>ctrl-join</code></td><td><code>{action, code}</code></td><td>`{ctrl_token (48 hex), slot: 0\</td><td>1, expires_at}`</td><td><code>400</code> code verlopen/onbekend of vormfout; <strong><code>409 {&quot;error&quot;:&quot;maximaal 2 joysticks&quot;}</code></strong> als beide slots bezet</td></tr>
+<tr><td><code>ctrl-input</code></td><td><code>{action, token, mask: 0..31}</code></td><td><code>{ok:true}</code></td><td><code>400</code> ongeldig mask; <code>401</code> controller onbekend/verlopen</td></tr>
+<tr><td><code>ctrl-poll</code></td><td><code>{action, token}</code> — <strong>host-token</strong></td><td><code>{controllers:[{slot, mask, age_ms}]}</code></td><td><code>401</code> als het token geen host-token van een levende sessie is</td></tr>
+<tr><td><code>ctrl-leave</code></td><td><code>{action, token}</code></td><td><code>{ok:true}</code></td><td>—</td></tr>
+<tr><td><code>pair-join</code></td><td><code>{action, code}</code></td><td><code>{guest_token, expires_at}</code></td><td><code>400</code> code onbekend/al bezet; <strong><code>409 {&quot;error&quot;:&quot;speler 2 is bezet door een telefoon-joystick&quot;}</code></strong></td></tr>
+<tr><td><code>pair-end</code></td><td><code>{action, token}</code> — <strong>host-token</strong></td><td><code>{ok:true}</code></td><td><code>401</code> als het token geen host-token is</td></tr>
+</tbody></table></div>
+<p><code>mask</code>-bits: bit0=UP bit1=DOWN bit2=LEFT bit3=RIGHT bit4=FIRE — identiek aan <code>G7K_JOY_*</code> in <code>g7000.h</code>. De app stuurt bij <strong>elke maskverandering</strong> plus een <strong>heartbeat elke 500 ms</strong>; de server bewaart alleen het laatste mask per controller.</p>
+<p><strong>Slot-regels (server is de enige autoriteit):</strong> 1. slot 0 = speler 1, slot 1 = speler 2; <code>ctrl-join</code> krijgt altijd het <strong>laagste vrije</strong> slot. 2. Bezet = bestaande <code>controllers</code>-rijen <strong>plus</strong> slot 1 wanneer <code>sessions.guest_token</code>    gevuld is — een &quot;Samen spelen&quot;-gast <em>ís</em> speler 2 (zie <code>guestOwnsPlayer2()</code>).    Die cap is sinds v0.4.0-Rusch <strong>symmetrisch</strong>: ook <code>pair-join</code> telt de controllers mee en    weigert met <code>409</code> als slot 1 al door een telefoon bezet is (of als beide slots vol zijn).    Maximaal 2 spelers per sessie, ongeacht de mix telefoon/gast. 3. Toewijzing gebeurt binnen <code>BEGIN IMMEDIATE</code> (SELECT bezet + INSERT in één schrijfvenster),    zodat twee telefoons die tegelijk joinen nooit hetzelfde slot krijgen. Geverifieerd:    6 gelijktijdige <code>ctrl-join</code>s → precies één slot 0, één slot 1, vier keer <code>409</code>. 4. <code>ctrl-leave</code> (of 60 s stilte ⇒ GC, of <code>pair-end</code>) geeft het slot vrij; de volgende join    krijgt het weer. 5. <code>ctrl-join</code> controleert <strong>read-only</strong> of de code bestaat vóórdat het <code>BEGIN IMMEDIATE</code>    opent — een willekeurige, geldig gevormde code neemt zo niet eerst het enige schrijfslot    van de gedeelde SQLite-db om daarna alsnog <code>400</code> te krijgen.</p>
+<p><strong>Dataflow:</strong> telefoon → <code>ctrl-input</code> (UPDATE van één rij) → SQLite <code>controllers</code> → host <code>ctrl-poll</code> → <code>S.joyCtrl[slot]</code> → <code>pushJoy(slot)</code> → OR met <code>joyKb|joyGp|joyPeer</code> → <code>g7k_joystick_set</code>. Een controller die uit de poll verdwijnt (leave/GC) zet zijn slot op 0. De host pollt <strong>alleen</strong> zolang <code>pairPlay.getStatus().hostToken</code> bestaat — geen verkeer als er geen sessie is.</p>
+<p><strong>Cadans, eerlijk gemeten (was: &quot;@10 Hz&quot;).</strong> De timer vuurt 10×/s, maar er loopt nooit meer dan één poll tegelijk (<code>inFlight</code>), dus de effectieve frequentie is <code>1/(RTT + 100 ms)</code>. Gemeten tegen HC55: <code>ctrl-poll</code>-RTT mediaan 125 ms, p95 190 ms ⇒ <strong>4-5 Hz</strong>, end-to-end telefoon→scherm ≈ 250-350 ms. Die gate blijft bewust staan: een wachtrij van polls verhoogt de latentie juist. De oude claim &quot;@10 Hz&quot; in code, ARCHITECTURE en CLAUDE.md was dus onjuist en is overal vervangen door de gemeten waarde.</p>
+<p><strong>Failsafe in twee lagen</strong> (een joystick die &quot;ingedrukt&quot; blijft hangen is het ergste faalgedrag van dit subsysteem): 1. <code>age_ms &gt; 3000</code> ⇒ die bron op 0 (telefoon stil). De marge is verhoogd van 2000 ms: die    2 s kwam van de oude BLE-watchdog over een lokale link (~10 ms). Over internet is de    cadans 500 ms + RTT; met een mobiele RTT van 300-500 ms komt één gemiste of ge-503&#x27;de    heartbeat al op 1600-2000 ms — precies op de oude drempel. 3000 ms dekt één gemiste    heartbeat plus jitter en blijft ruim onder de 60 s waarop de server het slot opruimt. 2. Faalt het <strong>pollen zelf</strong> (401, 503, netwerkuitval, onleesbaar antwoord), dan zet een    watchdog na dezelfde 3000 ms <strong>alle</strong> controller-maskers op 0 en verschijnt de storing    in <code>#ctrlStatus</code> (&quot;sessie niet meer geldig&quot;, &quot;server bezet&quot;, &quot;geen verbinding&quot;).    Vóór v0.4.0-Rusch werd <code>r.ok</code> niet eens gelezen: bij een storing bleef het laatst    bekende mask staan zolang die storing duurde. Na een fout geldt bovendien een backoff    van 1000 ms, zodat een 401 niet op 10 Hz wordt herhaald.</p>
+<p><strong>Schrijf-hygiëne (BUG-007-les):</strong> de tabel <code>controllers</code> staat in het <strong>eenmalige</strong> schema-blok van <code>db()</code> (geen <code>CREATE TABLE</code> per verzoek); <code>ctrl-input</code> doet één <code>UPDATE</code> (de tabel groeit dus niet mee met de invoerfrequentie); <code>ctrl-poll</code> schrijft niets; de opruiming van stille controllers (&gt;60 s) en wezen zit in de bestaande, op 60 s getrottelde <code>gc()</code>; <strong>álle</strong> schrijfacties lopen via <code>withRetry()</code> — sinds v0.4.0-Rusch ook de vijf in <code>gc()</code> zelf, die er ondanks deze claim buiten stonden (BUG-008: elke SQLITE_BUSY daar was een ongevangen <code>PDOException</code> ⇒ HTTP 500). Die GC-schrijfacties gebruiken <code>withRetry(..., $fatal: false)</code>: huishouding mag nooit het antwoord van een legitiem verzoek breken, dus bij aanhoudende druk slaat de GC deze ronde over. Het GC-venster wordt bovendien <strong>atomair geclaimd</strong> (<code>INSERT … ON CONFLICT DO UPDATE … WHERE meta.v &lt;= cutoff</code>), zodat niet elk verzoek dat tegelijk het 60 s-venster passeert het hele schrijfblok draait. Gemeten op HC55 na de fix (95 s, 2 controllers @2 Hz + host-poll, 1085 verzoeken, inclusief een GC-ronde): <strong>0 × 5xx</strong>, 1083 × <code>200</code>, 2 × <code>503</code> (0,18%) — de bedoelde begrensde terugval uit BUG-007, functioneel onzichtbaar omdat de eerstvolgende heartbeat (500 ms) het mask alsnog zet, ruim binnen de failsafe van 3000 ms.</p>
+<p><strong>Restrisico (bewust, gedocumenteerd): de code is een bearer-credential.</strong> Sinds v0.4.0 wordt <code>sessions.code</code> niet meer op NULL gezet (controllers hebben hem nodig), dus wie de code ziet (stream, screenshot, meekijken) kan tot het einde van de sessie een joystick-slot pakken en dat met heartbeats bezet houden. Er is geen tweede factor en geen rate limiting. Geaccepteerd omdat de code alleen 5 bits joystick-invoer geeft (geen data, geen ROM&#x27;s, geen account) en de blootstelling nu begrensd is: ⏹ Stop sessie roept <code>pair-end</code> aan en maakt de code onmiddellijk ongeldig — vóór v0.4.0-Rusch bleef hij nog tot 4 uur werken. Een host die een ongenode joystick ziet verschijnen, stopt en start opnieuw (nieuwe code).</p>
+<h2>Ontwerpbeslissingen</h2>
+<p>1. <strong>Geen server-side component</strong> — juridisch schoon (ROMs verlaten de browser niet) en HC55-deploy blijft triviaal statisch. 2. <strong>rAF-gedreven met audio-klok als meester</strong> zodra audio actief is (drift-correctie door frame te skippen/dubbelen), PAL 50Hz vs NTSC 60Hz volgt <code>g7k_set_region</code>. 3. <strong>Zusterpad-build</strong> (<code>../VideopacHorse_Core</code>) i.p.v. submodule — conform familie-conventie. 4. <strong>Telefoon-joystick via de sessiecode, bewust géén Bluetooth en géén HID</strong> (v0.4.0) —    het OS mag niets met de input doen; alleen deze pagina consumeert hem. De vorige route    (Web Bluetooth, GATT-peripheral op de telefoon) is verwijderd: hij werkte alleen in    Chromium, vroeg Bluetooth-permissies op de telefoon en had geen tegenhanger meer in    <code>VideopacHorse_Joystick</code> 0.4.0. Prijs van de nieuwe route: input loopt over internet    (~250-350 ms) in plaats van lokaal, en er moet een sessie lopen. 5. <strong>Input-compositing per speler</strong> — toetsenbord, gamepad, peer (DataChannel) en    internet-controller houden elk een eigen bronmask (<code>S.joyKb/joyGp/joyPeer/joyCtrl</code>);    <code>pushJoy</code> OR&#x27;t ze en geeft alleen échte veranderingen aan de core door. Zo wist de    500 ms-heartbeat van een telefoon geen toetsenbord-input en vecht een gamepad niet per    frame met de telefoon; een watchdog-failsafe zet alleen het eigen bron-deel op 0. Enige    uitzondering: staat er een pairplay-sessie, dan is speler 2 exclusief van de gast    (<code>guestOwnsPlayer2()</code>) en telt daar alleen <code>joyPeer[1]</code>. 6. <strong>Versiebump-conventie</strong> — elke wijziging aan <code>web/*</code> bumpt <code>version.json</code> + de    <code>?v=</code>-cache-busters + <code>BUILD_V</code> (BUG-002: tussenliggende proxy&#x27;s cachen immutable);    <code>build.sh</code> synct de busters met <code>version.json</code>.</p>
+<h2>Architectuurplaat</h2>
+<p><code>architectuur/VideopacHorse_Web_viewer.html</code> — één bestand, geen externe afhankelijkheden, werkt via <code>file://</code>. Vijf views; Transacties en Journeys hebben een afspeelbaar scenario (▶/⏸/⏭ met snelheidsregelaar). De notatie-schakelaar wisselt tussen ArchiMate- en Dragon1-weergave zonder het model te wijzigen; export naar <code>.json</code>, <code>.dsl</code>, <code>.archimate</code> en <code>.svg</code> zit in de werkbalk.</p>
+<p>Elk element verwijst naar iets dat werkelijk bestaat — een bestand, een endpoint of een gedocumenteerde flow uit dit document. Er staat niets in dat &quot;waarschijnlijk zo werkt&quot;. De bron-DSL (<code>architectuur/VideopacHorse_Web_archdsl.dsl</code>, 5,2 KB) is DSL-B-compatibel: PascalCase-types, geen <code>:type</code> op relaties.</p>
+<p>De viewer heeft één aanpassing ten opzichte van het sjabloon: <code>fitViewBox()</code> past de viewBox na elke render aan de getekende inhoud aan. Zonder dat viel bij de Fysiek- en Transacties-view de halve plaat buiten beeld, omdat elke view een andere doorsnede van het model toont en die zelden in de linkerbovenhoek ligt.</p>
+<h2>Documentatie online</h2>
+<p><code>/videopac/docs/</code> toont dezelfde markdown die in de repo staat, gerenderd door <code>tools/render_docs.py</code>. Dat script draait vanuit <code>build.sh</code> en is bewust afhankelijkheidsvrij: pandoc zou meer kunnen, maar dan hangt de build aan een tool die op HC55 niet geïnstalleerd is. De opmaak hergebruikt <code>web/style.css</code>, dus de documentatie volgt hetzelfde thema en dezelfde tokens als de emulator.</p>
+<p>De markdown is de bron; de HTML is een artefact, net als <code>g7000.wasm</code>. Handmatig een pagina bijwerken levert een tweede kopie op die uit de pas gaat lopen — precies wat P-4 verbiedt. Op de emulator-pagina staat een kaart &quot;Hoe dit ding in elkaar zit&quot; met verwijzingen naar de plaat, de documentatie-index, de buglijst en de principes; het archief heeft ze in de footer.</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>ARCHITECTURE.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

@@ -14,4 +14,16 @@ cp "$core_dir/build/wasm/g7000.js" "$core_dir/build/wasm/g7000.wasm" "$web_dir/"
 sed -i '' -E "s/\?v=[0-9.]+/?v=$ver/g" \
   "$web_dir/index.html" "$web_dir/stream/index.html" "$web_dir/2/index.html"
 sed -i '' -E "s/const BUILD_V = '[0-9.]+'/const BUILD_V = '$ver'/" "$web_dir/app.js"
-echo "OK: web/g7000.{js,wasm} bijgewerkt, cache-buster ?v=$ver ($(date +%F))"
+# Documentatie renderen naar web/docs/ en de architectuurplaat publiceren. Dit is een
+# build-artefact zoals de wasm: de markdown in de repo is de bron, de HTML is de leesbare
+# kant ervan. Handmatig bijhouden zou een tweede kopie opleveren die uit de pas loopt.
+python3 "$(dirname "$0")/tools/render_docs.py"
+mkdir -p "$web_dir/architectuur"
+# De viewer draagt een @VERSION@-marker; die vullen we hier in, zodat de gepubliceerde
+# plaat altijd de versie toont die erbij hoort en niemand dat met de hand hoeft bij te werken.
+codename=$(python3 -c "import json;d=json.load(open('$(dirname "$0")/version.json'));print(d['version']+'-'+d['codename'])")
+sed "s/@VERSION@/$codename/g" "$(dirname "$0")/architectuur/VideopacHorse_Web_viewer.html" \
+  > "$web_dir/architectuur/index.html"
+cp "$(dirname "$0")/architectuur/VideopacHorse_Web_archdsl.dsl" "$web_dir/architectuur/"
+
+echo "OK: web/g7000.{js,wasm} + web/docs/ + web/architectuur/ bijgewerkt, cache-buster ?v=$ver ($(date +%F))"

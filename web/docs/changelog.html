@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wijzigingen — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>CHANGELOG — VideopacHorse_Web</h1>
+<p>Afgeleid uit de git-historie (release-commits). De familie draait lock-step: dezelfde versie en codenaam staan in alle zes de repo&#x27;s. Thema van de codenamen: pioniers en emulator-auteurs rond de Videopac / Odyssey².</p>
+<p>Voor het <em>waarom</em> achter een wijziging: <code>docs/BUGLIST.md</code> (met RCA op drie niveaus) en de sessie-verslagen in <code>Meta_VideopacHorse/prompts/</code>.</p>
+<div class='tablewrap'><table><thead><tr>
+<th>Versie</th>
+<th>Codenaam</th>
+<th>Datum</th>
+<th>Wat</th>
+</tr></thead><tbody>
+<tr><td>0.0.1</td><td>Baer</td><td>2026-07-26</td><td>skeleton VideopacHorse (VideopacHorse_Web) — newp 2026-07-26</td></tr>
+<tr><td>0.1.0</td><td>Averett</td><td>2026-07-26</td><td>WASM-bundel (44KB) + node-smoke OK; klaar voor HC55 /videopac/</td></tr>
+<tr><td>0.1.1</td><td>Palmer</td><td>2026-07-26</td><td>wasm-rebuild met BUG-001-fix</td></tr>
+<tr><td>0.1.2</td><td>Boris</td><td>2026-07-26</td><td>wasm met S4-keyboard; buster ?v=0.1.2</td></tr>
+<tr><td>0.2.0</td><td>Gust</td><td>2026-07-27</td><td>BLE-telefoonjoystick (Web Bluetooth) + GAMES-catalogus (65 titels, No-Intro-CRC-verificatie, archive.org /cors/, IndexedDB-cache) + BIOS-laadknop arch</td></tr>
+<tr><td>0.3.0</td><td>Guttenbrunner</td><td>2026-07-27</td><td>Samen spelen — code-pairing (PHP+SQLite API) + WebRTC canvas/audio-stream + DataChannel-input (gast = speler 2); 6 bugs gefixt (BUGLIST); clipboard-bo</td></tr>
+<tr><td>0.3.1</td><td>Harrison</td><td>2026-07-27</td><td>sessie = auto power-cycle + speler 2 exclusief voor de gast (gast ook met pijltjes); BUG-007 SQLite-lock gefixt (throttled GC, BEGIN IMMEDIATE, retry-</td></tr>
+<tr><td>0.4.0</td><td>Rusch</td><td>2026-07-27</td><td>telefoon koppelt via sessiecode (max 2, server-side cap), BLE verwijderd; 13 review-findings + BUG-009 (read-first poll) gefixt</td></tr>
+<tr><td>0.4.1</td><td>Jopac</td><td>2026-07-27</td><td>versie-bump voor BUG-010/011 + UI-nazorg (verse start, badges met bron/titel, alleen actief spel gemarkeerd)</td></tr>
+<tr><td>0.4.2</td><td>Magnavox</td><td>2026-07-27</td><td>herladen geeft ook een verse SESSIE (host-sessie wordt niet meer hervat) + versie-bump voor de UI-nazorg</td></tr>
+<tr><td>0.5.0</td><td>Veiga</td><td>2026-07-27</td><td>drie codes per sessie + netplay-variant op /videopac/2/</td></tr>
+<tr><td>0.5.1</td><td>Kerstens</td><td>2026-07-27</td><td>netplay wordt de gewone versie, streamversie gearchiveerd</td></tr>
+</tbody></table></div>
+<h2>Niet-release-commits</h2>
+<p>Tussenliggende commits (bugfixes vóór een bump, doc-updates, deploys) staan in de git-historie zelf: <code>git log --oneline</code>. Dit bestand bevat alleen de momenten waarop de hele familie mee-bumpte, want dat is wat &quot;een versie&quot; hier betekent.</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>CHANGELOG.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

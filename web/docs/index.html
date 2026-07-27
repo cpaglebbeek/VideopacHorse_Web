@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Documentatie — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>Documentatie</h1>
+<p>Alles wat over deze emulator is vastgelegd: waarom hij zo in elkaar zit, waar de
+onderdelen van afhangen, welke fouten we gemaakt hebben en wat daaruit volgde. Deze
+pagina's zijn gegenereerd uit de markdown in de repository — de repo is de bron, dit is
+de leesbare kant ervan.</p>
+<div class="tablewrap"><table><thead><tr><th>Document</th><th>Waarover</th></tr></thead><tbody>
+<tr><td><a href="architecture.html"><strong>Architectuur</strong></a></td><td>Componenten, dataflow, de drie codes, netplay en het archief.</td></tr>
+<tr><td><a href="principles.html"><strong>Principes</strong></a></td><td>Twaalf ontwerpprincipes mét het waarom — elk herleidbaar naar een beslissing of een fout.</td></tr>
+<tr><td><a href="dependencies.html"><strong>Afhankelijkheden</strong></a></td><td>Per onderdeel: waar hangt het van af, en vooral: wat breekt er als het wijzigt.</td></tr>
+<tr><td><a href="design-tokens.html"><strong>Ontwerp-tokens</strong></a></td><td>Alle kleuren, maten en componenten, en hoe het configuratiepaneel eraan gekoppeld is.</td></tr>
+<tr><td><a href="buglist.html"><strong>Buglijst</strong></a></td><td>Elke bug met oorzaakanalyse op drie niveaus en de preventieregel die eruit volgde.</td></tr>
+<tr><td><a href="duplicates.html"><strong>Duplicatie-register</strong></a></td><td>Waar code bewust dubbel staat, waarom, en wat het alternatief zou kosten.</td></tr>
+<tr><td><a href="changelog.html"><strong>Wijzigingen</strong></a></td><td>Alle releases met versie, codenaam en datum.</td></tr>
+<tr><td><a href="tests.html"><strong>Tests</strong></a></td><td>Drie suites, wat ze bewijzen, en twee valkuilen die ze bewust vermijden.</td></tr>
+<tr><td><a href="screens.html"><strong>Schermen</strong></a></td><td>Doel, doelgroep en boodschap per scherm, met visuele referentie.</td></tr>
+<tr><td><a href="readme.html"><strong>Overzicht</strong></a></td><td>Wat dit project is en hoe je het bouwt.</td></tr>
+</tbody></table></div>
+<h2>Architectuurplaat</h2>
+<p><a href="../architectuur/"><strong>Interactieve viewer</strong></a> — vijf gezichtspunten
+(conceptueel, logisch, fysiek, transacties, journeys), met afspeelbare scenario's voor het
+opzetten van netplay en de weg die host en gast door de schermen afleggen. Wisselbaar tussen
+ArchiMate- en Dragon1-notatie; export naar JSON, DSL, .archimate en SVG.</p>
+<h2>Schermen</h2>
+<p><a href="screens/01_netplay_hoofdpagina.png">01 netplay hoofdpagina</a> · <a href="screens/02_archief_streamversie.png">02 archief streamversie</a> · <a href="screens/03_configuratiepaneel.png">03 configuratiepaneel</a> · <a href="screens/04_doorverwijzing.png">04 doorverwijzing</a> · <a href="screens/05_architectuur_viewer.png">05 architectuur viewer</a></p>
+
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>docs/*.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

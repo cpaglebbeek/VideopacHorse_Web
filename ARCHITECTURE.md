@@ -16,6 +16,8 @@
 | Tests | `tests/run.sh` | wegwerpserver + API-suite + twee browsersuites (`tests/README.md`) |
 | Architectuurplaat | `architectuur/VideopacHorse_Web_viewer.html` | standalone viewer met 5 views (Conceptueel/Logisch/Fysiek/Transacties/Journeys), animatie op de twee scenario's, ArchiMate ↔ Dragon1-switch; bron-DSL ernaast als `VideopacHorse_Web_archdsl.dsl` |
 | Vastlegging | `docs/PRINCIPLES.md`, `docs/DEPENDENCIES.md`, `docs/DUPLICATES.md`, `docs/screens/`, `CHANGELOG.md` | het waarom, de oorzaak-gevolgketen, geregistreerde duplicatie, schermreferenties en de releasehistorie |
+| Gepubliceerde docs | `web/docs/` (build-artefact) | `/videopac/docs/` — dezelfde markdown, gerenderd door `tools/render_docs.py` vanuit `build.sh`. Nooit met de hand bijwerken |
+| Gepubliceerde plaat | `web/architectuur/` (build-artefact) | `/videopac/architectuur/` — kopie van de viewer met de versie ingevuld op de `@VERSION@`-marker |
 
 ## Data-flow
 
@@ -267,3 +269,16 @@ De viewer heeft één aanpassing ten opzichte van het sjabloon: `fitViewBox()` p
 na elke render aan de getekende inhoud aan. Zonder dat viel bij de Fysiek- en
 Transacties-view de halve plaat buiten beeld, omdat elke view een andere doorsnede van het
 model toont en die zelden in de linkerbovenhoek ligt.
+
+## Documentatie online
+
+`/videopac/docs/` toont dezelfde markdown die in de repo staat, gerenderd door
+`tools/render_docs.py`. Dat script draait vanuit `build.sh` en is bewust
+afhankelijkheidsvrij: pandoc zou meer kunnen, maar dan hangt de build aan een tool die op
+HC55 niet geïnstalleerd is. De opmaak hergebruikt `web/style.css`, dus de documentatie
+volgt hetzelfde thema en dezelfde tokens als de emulator.
+
+De markdown is de bron; de HTML is een artefact, net als `g7000.wasm`. Handmatig een pagina
+bijwerken levert een tweede kopie op die uit de pas gaat lopen — precies wat P-4 verbiedt.
+Op de emulator-pagina staat een kaart "Hoe dit ding in elkaar zit" met verwijzingen naar de
+plaat, de documentatie-index, de buglijst en de principes; het archief heeft ze in de footer.

@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Duplicatie-register — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>DUPLICATES.md — VideopacHorse_Web</h1>
+<p>Register van bewuste duplicatie. Regel: geen duplicaat tenzij (1) er een expliciete reden is, (2) die aan cpaglebbeek gemeld is en (3) hij ermee akkoord ging. Alles zonder akkoord-datum is <strong>nog niet goedgekeurd</strong> en staat hier om die beslissing af te dwingen, niet om hem te omzeilen.</p>
+<p><strong>Meting 2026-07-28</strong> (<code>jscpd --min-lines 6 --min-tokens 50</code>, <code>g7000.js</code> uitgesloten als build-artefact): 7 hits, 72 van 5723 regels (1,3%). Vóór de refactor van deze ronde: 7 hits, 120 regels (2,2%) — de grootste hit van 53 regels is weggewerkt, zie DUP-001.</p>
+<h2>DUP-001 — configuratiepaneel · OPGELOST, niet geregistreerd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>was</td><td><code>web/index.html:120-172</code> ↔ <code>web/stream/index.html:122-174</code> (53 regels) + 3 kleinere blokken</td></tr>
+<tr><td>status</td><td><strong>weggerefactord in v0.5.1</strong> — geen registratie nodig</td></tr>
+<tr><td>hoe</td><td><code>buildConfigPanel()</code> in <code>web/app.js</code> bouwt het paneel op uit <code>CFG_COLORS</code> / <code>CFG_RANGES</code> / <code>CFG_FONTS</code>; beide pagina&#x27;s houden alleen <code>&lt;details id=&quot;configCard&quot;&gt;&lt;/details&gt;</code> over</td></tr>
+<tr><td>winst</td><td>een instelling toevoegen is nu één regel in <code>app.js</code> en verschijnt op beide pagina&#x27;s; bijvangst: <code>--btn-primary-text</code> was in het handmatige paneel vergeten en is nu meegenomen (dekking 16/16)</td></tr>
+</tbody></table></div>
+<h2>DUP-002 — transactie-boilerplate in de API · OPGELOST, niet geregistreerd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>was</td><td><code>web/api/index.php:448-459</code> ↔ <code>:639-650</code> (12 regels) — identiek <code>BEGIN IMMEDIATE</code> + try/catch/ROLLBACK in <code>pair-join</code> en <code>ctrl-join</code></td></tr>
+<tr><td>status</td><td><strong>weggerefactord in v0.5.1</strong> naar <code>inImmediateTransaction()</code></td></tr>
+<tr><td>restant</td><td>8 regels (<code>:466-473</code> ↔ <code>:648-655</code>) blijven over: de afsluitende <code>if (isset($res[&#x27;err&#x27;])) fail(...)</code> + <code>ok(...)</code> per endpoint. Zie DUP-003</td></tr>
+</tbody></table></div>
+<h2>DUP-003 — afhandeling van endpoint-resultaten · ⚠ akkoord gevraagd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>id</td><td>DUP-003</td></tr>
+<tr><td>bestand-A</td><td><code>web/api/index.php:466-473</code> (<code>pair-join</code>)</td></tr>
+<tr><td>bestand-B</td><td><code>web/api/index.php:648-655</code> (<code>ctrl-join</code>)</td></tr>
+<tr><td>regels</td><td>8</td></tr>
+<tr><td>similarity</td><td>~85%</td></tr>
+<tr><td>reden</td><td>Het patroon &quot;fout uit de transactie → <code>fail()</code>, anders <code>ok()</code> met endpoint-eigen velden&quot; is per endpoint nét anders (<code>guest_token</code> vs <code>ctrl_token</code>+<code>slot</code>). Abstraheren zou een callback-voor-de-succesvorm vereisen en maakt het antwoordcontract indirect — precies het deel dat je bij een API het snelst wilt kunnen lézen</td></tr>
+<tr><td>alternatief-overwogen</td><td>Een <code>respondOrFail($res, callable $shape)</code>-helper. Kost meer leesbaarheid dan hij oplevert bij twee gevallen</td></tr>
+<tr><td>akkoord-door</td><td>—</td></tr>
+<tr><td>akkoord-datum</td><td>—</td></tr>
+<tr><td>review-vervaldatum</td><td>bij een derde endpoint met ditzelfde patroon opnieuw wegen</td></tr>
+</tbody></table></div>
+<h2>DUP-004 — gedeelde paginastructuur netplay ↔ archief · ⚠ akkoord gevraagd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>id</td><td>DUP-004</td></tr>
+<tr><td>bestand-A</td><td><code>web/index.html:13-31</code>, <code>:89-107</code>, <code>:110-119</code>, <code>:120-128</code></td></tr>
+<tr><td>bestand-B</td><td><code>web/stream/index.html:20-38</code>, <code>:39-57</code>, <code>:110-119</code>, <code>:122-130</code></td></tr>
+<tr><td>regels</td><td>57 verdeeld over 4 blokken</td></tr>
+<tr><td>similarity</td><td>~90%</td></tr>
+<tr><td>wat</td><td>emulatorkaart (canvas + knoppenrij + consoletoetsenbord), bestandenkaart (BIOS/ROM-pickers), GAMES-kaart, footer</td></tr>
+<tr><td>reden</td><td>Beide pagina&#x27;s tónen dezelfde bouwstenen, maar met eigen teksten, eigen volgorde en een eigen kaart ertussen (netplay-paneel vs pairplay-paneel). De element-id&#x27;s zijn bovendien het contract met <code>app.js</code>; die generen betekent dat je het contract niet meer in de pagina kunt lézen. Het archief is bevroren — het is de kant die <em>niet</em> meer meebeweegt, dus de klassieke drift-vrees speelt hier minder</td></tr>
+<tr><td>alternatief-overwogen</td><td>Kaarten genereren vanuit <code>app.js</code> zoals het configuratiepaneel. Afgewogen en niet gedaan: bij het configuratiepaneel is de inhoud pure data (tokenlijst), hier is het inhoudelijke tekst per pagina. Een template-engine of build-stap zou een bouwstap toevoegen aan een repo die bewust volledig statisch is (zie <code>docs/PRINCIPLES.md</code> P-1)</td></tr>
+<tr><td>akkoord-door</td><td>—</td></tr>
+<tr><td>akkoord-datum</td><td>—</td></tr>
+<tr><td>review-vervaldatum</td><td>zodra <code>/videopac/stream/</code> wordt opgeruimd (staat in ACTIONS) vervalt deze duplicatie vanzelf</td></tr>
+</tbody></table></div>
+<h2>DUP-005 — WASM-cwrap-binding · ⚠ akkoord gevraagd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>id</td><td>DUP-005</td></tr>
+<tr><td>bestand-A</td><td><code>web/app.js:298-304</code></td></tr>
+<tr><td>bestand-B</td><td><code>web/netplay.js:368-373</code></td></tr>
+<tr><td>regels</td><td>7</td></tr>
+<tr><td>similarity</td><td>~85%</td></tr>
+<tr><td>wat</td><td><code>cwrap</code>-aanroepen: <code>app.js</code> bindt de speel-API, <code>netplay.js</code> bindt daarnaast <code>g7k_state_size/_save/_load</code></td></tr>
+<tr><td>reden</td><td><code>app.js</code> heeft de savestate-functies niet nodig en <code>netplay.js</code> mag <code>S.api</code> niet uitbreiden (dat zou de streamversie beïnvloeden). De overeenkomst is de vórm van een <code>cwrap</code>-aanroep, niet gedeelde logica</td></tr>
+<tr><td>alternatief-overwogen</td><td>De savestate-cwraps aan <code>S.api</code> toevoegen in <code>app.js</code>. Verworpen: dan draagt de gearchiveerde pagina code mee die zij nooit gebruikt</td></tr>
+<tr><td>akkoord-door</td><td>—</td></tr>
+<tr><td>akkoord-datum</td><td>—</td></tr>
+</tbody></table></div>
+<h2>DUP-006 — blob-verzending in netplay · ⚠ akkoord gevraagd</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Veld</th>
+<th>Waarde</th>
+</tr></thead><tbody>
+<tr><td>id</td><td>DUP-006</td></tr>
+<tr><td>bestand-A</td><td><code>web/netplay.js:592-598</code></td></tr>
+<tr><td>bestand-B</td><td><code>web/netplay.js:707-711</code></td></tr>
+<tr><td>regels</td><td>7</td></tr>
+<tr><td>similarity</td><td>~80%</td></tr>
+<tr><td>wat</td><td>het klaarzetten en versturen van respectievelijk een asset-blob en een savestate-blob</td></tr>
+<tr><td>reden</td><td>Kandidaat voor echte samenvoeging — beide roepen al <code>sendBlob()</code> aan; wat overblijft is het ophalen van de bytes. Dit is de enige hit in dit register die vermoedelijk beter wél wordt opgeruimd</td></tr>
+<tr><td>alternatief-overwogen</td><td>Samenvoegen tot één <code>sendAsset(kind)</code>-functie</td></tr>
+<tr><td>akkoord-door</td><td>—</td></tr>
+<tr><td>akkoord-datum</td><td>—</td></tr>
+<tr><td>voorstel</td><td>opruimen bij de eerstvolgende wijziging in <code>netplay.js</code></td></tr>
+</tbody></table></div>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>docs/DUPLICATES.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

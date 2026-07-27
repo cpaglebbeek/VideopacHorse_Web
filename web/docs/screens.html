@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Schermen — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>Schermreferenties — VideopacHorse_Web</h1>
+<p>Visuele referentie per scherm, gemaakt met Playwright tegen de echte pagina&#x27;s (v0.5.1). Doel, doelgroep en boodschap per scherm staan hieronder; het beeld is het bewijs dat de beschrijving klopt.</p>
+<p>Opnieuw maken: draai <code>tests/run.sh</code> zodat er een wegwerpserver staat, en gebruik het screenshot-blok uit de sessie-MD (<code>Meta_VideopacHorse/prompts/2026-07-27_v050_*.md</code>).</p>
+<div class='tablewrap'><table><thead><tr>
+<th>Bestand</th>
+<th>Scherm</th>
+<th>Doel</th>
+<th>Doelgroep</th>
+<th>Kernboodschap / CTA</th>
+</tr></thead><tbody>
+<tr><td><code>01_netplay_hoofdpagina.png</code></td><td><code>/videopac/</code></td><td>de emulator draaien en samen spelen via netplay</td><td>bezoeker met een eigen BIOS-dump, of iemand die een spel uit de GAMES-lijst kiest</td><td>&quot;Start sessie&quot; → drie codes; jullie draaien allebei dezelfde machine</td></tr>
+<tr><td><code>02_archief_streamversie.png</code></td><td><code>/videopac/stream/</code></td><td>de oude streamvariant beschikbaar houden om te kunnen vergelijken</td><td>wie de vorige manier van samen spelen wil zien</td><td>badge &quot;gearchiveerd&quot; + verwijzing naar de opvolger</td></tr>
+<tr><td><code>03_configuratiepaneel.png</code></td><td>onderdeel van beide pagina&#x27;s</td><td>kleuren, typografie en layout instelbaar maken; export/import/reset</td><td>iedereen die de weergave wil aanpassen</td><td>16 kleuren, 6 maten, thema donker/licht — opgebouwd uit één bron in <code>app.js</code></td></tr>
+<tr><td><code>04_doorverwijzing.png</code></td><td><code>/videopac/2/</code></td><td>oude links en bladwijzers naar de netplay-variant levend houden</td><td>wie <code>/videopac/2/</code> nog heeft opgeslagen</td><td>stuurt automatisch door naar <code>/videopac/</code></td></tr>
+</tbody></table></div>
+<h2>Wat je op <code>01</code> moet kunnen zien</h2>
+<ul>
+<li>Het emulatorscherm mét een lopend spel (Gunfighter, nr 14) — niet een leeg canvas.</li>
+<li>De drie codes onder elkaar: gastcode, joystickcode speler 1, joystickcode speler 2, met de</li>
+</ul>
+<p>  code links groot en de rol plus uitleg ernaast.</p>
+<ul>
+<li>De teller onder de knoppen: frame, invoervertraging in frames, heen-en-terugtijd,</li>
+</ul>
+<p>  wachtbeurten en het aantal keer uit de pas (met herstelteller).</p>
+<ul>
+<li>Rechtsboven de badge met de core-versie — die hoort gelijk te zijn aan <code>version.json</code>.</li>
+</ul>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>docs/screens/README.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ontwerp-tokens — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>DESIGN_TOKENS.md — VideopacHorse_Web</h1>
+<p><strong>Waar de tokens staan (v0.5.1):</strong> alle CSS-variabelen zijn gedefinieerd in <code>web/style.css</code> op <code>:root</code> — tot v0.4.2 stond die CSS inline in <code>index.html</code>, maar sinds er twee pagina&#x27;s zijn (<code>/videopac/</code> netplay en <code>/videopac/stream/</code> archief) is het één gedeeld bestand. Twee kopieën zouden gegarandeerd uit elkaar lopen.</p>
+<p><strong>Config-laag:</strong> <code>&lt;details id=&quot;configCard&quot;&gt;</code> — een <strong>lege container</strong> in beide pagina&#x27;s; de inhoud wordt opgebouwd door <code>buildConfigPanel()</code> in <code>web/app.js</code> uit de tabellen <code>CFG_COLORS</code>, <code>CFG_RANGES</code> en <code>CFG_FONTS</code>. Tot v0.5.1 stond die markup in béide pagina&#x27;s (≈100 regels duplicaat); een instelling toevoegen betekent nu één regel in <code>app.js</code> en verschijnt automatisch op beide pagina&#x27;s. Bindings via <code>data-cssvar</code>; persistentie in <code>localStorage</code> onder sleutel <strong><code>videopachorse.cfg.v1</code></strong>; knoppen Exporteer/Importeer (.json-roundtrip) en Reset (removeItem + defaults). Thema&#x27;s via <code>:root[data-theme=&quot;dark|light&quot;]</code>.</p>
+<p><strong>Dekking:</strong> 16 van de 16 kleur-tokens en alle 6 maat-tokens zijn instelbaar (100%). <code>--btn-primary-text</code> is in v0.5.1 toegevoegd aan het paneel; die ontbrak.</p>
+<h2>Config-keys (alle via config-paneel instelbaar)</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Key (CSS-var)</th>
+<th>Default (dark)</th>
+<th>Scope</th>
+<th>Type</th>
+</tr></thead><tbody>
+<tr><td><code>--accent</code></td><td><code>#f5a623</code></td><td>globaal</td><td>color</td></tr>
+<tr><td><code>--bg</code></td><td><code>#14151c</code></td><td>globaal</td><td>color</td></tr>
+<tr><td><code>--panel-bg</code></td><td><code>#1e2029</code></td><td>kaarten</td><td>color</td></tr>
+<tr><td><code>--panel-border</code></td><td><code>#33364a</code></td><td>kaarten</td><td>color</td></tr>
+<tr><td><code>--text</code></td><td><code>#e8e8ef</code></td><td>globaal</td><td>color</td></tr>
+<tr><td><code>--text-dim</code></td><td><code>#9a9db3</code></td><td>hulptekst</td><td>color</td></tr>
+<tr><td><code>--btn-primary</code> (+<code>--btn-primary-text</code>)</td><td><code>#f5a623</code></td><td>Start-knop</td><td>color</td></tr>
+<tr><td><code>--btn-secondary</code></td><td><code>#33364a</code></td><td>overige knoppen</td><td>color</td></tr>
+<tr><td><code>--btn-danger</code></td><td><code>#c0392b</code></td><td>Reset-config-knop</td><td>color</td></tr>
+<tr><td><code>--badge-ok</code> / <code>--badge-warn</code> / <code>--badge-err</code></td><td><code>#27ae60</code>/<code>#f39c12</code>/<code>#c0392b</code></td><td>statusbadges</td><td>color</td></tr>
+<tr><td><code>--canvas-border</code> / <code>--canvas-bg</code></td><td><code>#33364a</code>/<code>#000000</code></td><td>emulatorscherm</td><td>color</td></tr>
+<tr><td><code>--kbd-bg</code></td><td><code>#2a2d3d</code></td><td>console-toetsenbord + kbd-chips</td><td>color</td></tr>
+<tr><td><code>--font-family</code></td><td>systeem-stack</td><td>globaal</td><td>select (Systeem/Serif/Mono)</td></tr>
+<tr><td><code>--font-size</code></td><td><code>15px</code></td><td>globaal</td><td>range 12-20</td></tr>
+<tr><td><code>--h1-size</code></td><td><code>26px</code></td><td>kop</td><td>range 18-40</td></tr>
+<tr><td><code>--container-w</code></td><td><code>980px</code></td><td>layout</td><td>range 640-1400</td></tr>
+<tr><td><code>--card-radius</code></td><td><code>10px</code></td><td>kaarten</td><td>range 0-24</td></tr>
+<tr><td><code>--card-pad</code></td><td><code>16px</code></td><td>kaarten</td><td>range 6-32</td></tr>
+<tr><td><code>--canvas-scale</code></td><td><code>3</code></td><td>emulatorscherm (CSS-breedte = fb-breedte × schaal)</td><td>range 1-4</td></tr>
+<tr><td><code>theme</code> (géén CSS-var)</td><td><code>dark</code></td><td>root-attribuut</td><td>select dark/light</td></tr>
+</tbody></table></div>
+<p><strong>Telregel-dekking:</strong> distinct UI-elementen = kaarten, 3 knop-rollen, 3 badge-rollen, canvas (rand+bg), toetsenbord, tekst (2 rollen), accent, achtergrond → 15 kleur-inputs op 15 distinct elementen = 100%.</p>
+<h2>ctrlPad-statusblok (telefoon-joystick) — geen nieuwe tokens</h2>
+<p>De klassen <code>.blestatus</code> / <code>.blerow</code> dragen nog hun oude BLE-naam; het blok zelf is sinds v0.4.0-Rusch uitsluitend van <code>#ctrlStatus</code> (het BLE-statusblok <code>#bleStatus</code> is samen met de Web-Bluetooth-route verwijderd). Per gekoppelde controller één regel &quot;📱 Speler 1/2 →&quot; (<code>--text-dim</code>) met een statusbadge <code>--badge-ok</code> (verbonden) of <code>--badge-warn</code> (stil, geen heartbeat &gt; 3 s); bij een storing op de poll-route zelf (401/503/geen netwerk) één regel &quot;📱 Telefoon-joystick →&quot; met <code>--badge-err</code>. Hergebruikt uitsluitend bestaande tokens: geen extra kleuren, geen extra config-keys — de telregel hierboven blijft 15/15.</p>
+<h2>Typografie</h2>
+<p>Systeem-stack default; Serif en Mono (retro) als alternatieven. Groottes via <code>--font-size</code> (basis) en <code>--h1-size</code> (kop).</p>
+<h2>Overige vaste tokens (niet-configureerbaar, bewust)</h2>
+<ul>
+<li><code>image-rendering: pixelated</code> op het canvas — pixel-authenticiteit is een productkeuze.</li>
+<li>Badge-radius 99px, knop-radius 7px — vaste micro-stijl.</li>
+</ul>
+<h2>Componenten toegevoegd in v0.5.0/v0.5.1 (<code>web/style.css</code>)</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Component</th>
+<th>Selector</th>
+<th>Doel</th>
+<th>Tokens</th>
+</tr></thead><tbody>
+<tr><td>Codekaart</td><td><code>.codegrid</code> / <code>.codebox</code></td><td>de drie sessiecodes (gast + joystick P1/P2); code links groot, rol en uitleg rechts</td><td><code>--kbd-bg</code>, <code>--text-dim</code>, <code>--card-radius</code></td></tr>
+<tr><td>Codewaarde</td><td><code>.codebox .value</code></td><td>de over te tikken code — monospace, 1.7em, letterspacing 3px</td><td><code>--text</code></td></tr>
+<tr><td>Netplay-teller</td><td><code>.netstats</code></td><td>frame, invoervertraging, RTT, wachtbeurten, desyncs onder de netplay-kaart</td><td><code>--text-dim</code>, <code>--text</code></td></tr>
+<tr><td>Archiefbadge</td><td><code>.badge</code> op de <code>&lt;h1&gt;</code> van <code>/videopac/stream/</code></td><td>markeert de gearchiveerde streamversie</td><td><code>--badge-warn</code></td></tr>
+</tbody></table></div>
+<p><code>.codebox</code> schakelt onder 520px naar één kolom (code boven rol boven uitleg) — de enige media-query in het bestand.</p>
+<h2>Waar dit vandaan komt</h2>
+<p>De configuratielaag volgt de referentie-implementatie <code>iCt_Horse/edu/noisecanceling/index.html</code> (per-element <code>data-cssvar</code>-binding, één <code>CFG_KEY</code>, export/import/reset).</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>DESIGN_TOKENS.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

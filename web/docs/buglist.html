@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buglijst — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>BUGLIST — VideopacHorse_Web</h1>
+<p>Conventie: kleurcode (Groen fysiek / Geel logisch / Rood conceptueel) + RCA op drie niveaus (functioneel / technisch / architectonisch) + preventieregel. Zie <code>Meta_Master/templates/BUGLIST_TEMPLATE.md</code>.</p>
+<h2>BUG-002 — Nieuwe engine-versie kwam niet aan bij de gebruiker (Geel, closed 2026-07-26)</h2>
+<ul>
+<li><strong>Symptoom:</strong> na deploy van v0.1.1 bleef de badge 0.1.0 tonen, ook in incognito.</li>
+<li><strong>RCA functioneel:</strong> gebruiker speelde met oude, buggy engine terwijl de fix live stond.</li>
+<li><strong>RCA technisch:</strong> <code>g7000.wasm</code> werd met <code>Cache-Control: immutable</code> geserveerd; een proxy</li>
+</ul>
+<p>  op het netwerk van de gebruiker cachete het bestand — incognito omzeilt alleen de   browsercache, niet de proxy.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> deploy-keten had geen content-versioning; alleen headers.</li>
+<li><strong>Fix:</strong> <code>?v=&lt;versie&gt;</code>-cache-busters op js/wasm (<code>locateFile</code>), <code>build.sh</code> synct de buster</li>
+</ul>
+<p>  met <code>version.json</code>.</p>
+<ul>
+<li><strong>Preventie:</strong> elke release krijgt automatisch verse URL&#x27;s; nooit vertrouwen op</li>
+</ul>
+<p>  cache-headers alleen bij artefacten die de gebruiker moet ontvangen.</p>
+<h2>BUG-003 — Alle WebRTC-signalen tussen host en gast verdwenen (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> <code>rtc-signal-send</code> gaf <code>{&quot;ok&quot;:true}</code>, maar de peer pollde altijd een lege lijst.</li>
+<li><strong>RCA functioneel:</strong> pairen liep vast op &quot;wacht op gast&quot;.</li>
+<li><strong>RCA technisch:</strong> de GC verwijderde signalen waarvan sender/target niet in <code>sessions.token</code></li>
+</ul>
+<p>  stond; <code>sessions.token</code> bevat alleen het <strong>host</strong>-token, dus élk gast-signaal werd bij het   eerstvolgende request gewist.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> twee rollen (host/gast) gemodelleerd in één rij met één token-kolom.</li>
+<li><strong>Fix:</strong> GC beschouwt <code>host_token</code> én <code>guest_token</code> als levende tokens.</li>
+<li><strong>Preventie:</strong> bij rol-gebonden tokens altijd de volledige token-verzameling gebruiken in GC</li>
+</ul>
+<p>  én lookups (zie ook BUG-003b).</p>
+<h2>BUG-003b — Gast-token werd niet herkend (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> gast kreeg &quot;sessie verlopen of onbekend&quot; (HTTP 401) direct na join.</li>
+<li><strong>RCA technisch:</strong> <code>requireSessionByToken</code> zocht alleen op <code>sessions.token</code>; peer-bepaling</li>
+</ul>
+<p>  in <code>rtc-signal-send</code> vergeleek de rij met zichzelf (altijd &quot;host&quot;). Client gaf bovendien het   host-token aan de gast mee.</p>
+<ul>
+<li><strong>Fix:</strong> lookup op <code>token OR guest_token</code>; peer bepaald op basis van de <strong>aanroeper</strong>;</li>
+</ul>
+<p>  <code>pair-join</code> geeft geen host-token meer terug en de client kiest zijn token per rol.</p>
+<ul>
+<li><strong>Preventie:</strong> een token is een identiteit — nooit tokens van een andere rol uitdelen.</li>
+</ul>
+<h2>BUG-004 — Geen beeld/geluid en geen DataChannel na verbinden (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>RCA technisch:</strong> de gast was offerer maar vroeg geen media aan (offer zonder m-lines) en</li>
+</ul>
+<p>  de host maakte het DataChannel; daardoor konden host-tracks nooit beantwoord worden.</p>
+<ul>
+<li><strong>Fix:</strong> gast = offerer met <code>addTransceiver(&#x27;video&#x27;/&#x27;audio&#x27;, recvonly)</code> + eigen DataChannel;</li>
+</ul>
+<p>  host antwoordt met zijn canvas/audio-tracks.</p>
+<ul>
+<li><strong>Preventie:</strong> rolverdeling (wie biedt aan, wie antwoordt) expliciet in ARCHITECTURE.md.</li>
+</ul>
+<h2>BUG-005 — Gast keek naar zijn eigen lege scherm (Groen, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Fix:</strong> remote <code>&lt;video&gt;</code> wordt op de plek van het canvas gezet (canvas verborgen), met</li>
+</ul>
+<p>  herstel bij stoppen van de sessie.</p>
+<h2>BUG-006 — Vroege ICE-kandidaten werden weggegooid (Groen, closed 2026-07-27)</h2>
+<ul>
+<li><strong>RCA technisch:</strong> kandidaten die vóór <code>setRemoteDescription</code> binnenkwamen faalden en</li>
+</ul>
+<p>  werden alleen gelogd; verbinding kwam alleen tot stand dankzij latere kandidaten.</p>
+<ul>
+<li><strong>Fix:</strong> kandidaten queuen in <code>pendingICE</code> en flushen na <code>setRemoteDescription</code>.</li>
+</ul>
+<h2>BUG-007 — &quot;database is locked&quot; tijdens pairen (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> willekeurige HTTP 500&#x27;s op <code>/videopac/api/</code>; gast bleef hangen op</li>
+</ul>
+<p>  &quot;wacht op answer van host…&quot;.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> sessies kwamen soms niet tot stand.</li>
+<li><strong>RCA technisch:</strong> drie oorzaken bovenop elkaar — (1) GC draaide twee DELETE&#x27;s bij</li>
+</ul>
+<p>  <em>elk</em> verzoek terwijl beide peers 2×/s pollen; (2) <code>CREATE TABLE IF NOT EXISTS meta</code>   stond in de GC en nam per verzoek een schrijfslot; (3) poll-and-delete draaide in een   <em>deferred</em> transactie die pas bij de DELETE moest upgraden van lees- naar schrijfslot —   precies het geval waarin <code>PRAGMA busy_timeout</code> niet kan wachten.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> een polling-protocol op SQLite is schrijf-intensief; dat was</li>
+</ul>
+<p>  niet in het ontwerp meegewogen (het clipboard-bouwblok heeft minder verkeer).</p>
+<ul>
+<li><strong>Fix:</strong> GC hoogstens 1×/60 s (marker in <code>meta</code>), meta-tabel naar het eenmalige schema,</li>
+</ul>
+<p>  <code>BEGIN IMMEDIATE</code> voor poll-and-delete (één DELETE i.p.v. per rij), <code>busy_timeout=10000</code>   + <code>synchronous=NORMAL</code>, en een <code>withRetry()</code>-helper (25×40 ms) om alle schrijfacties;   bij aanhoudende druk een nette 503 in plaats van een fatale fout.</p>
+<ul>
+<li><strong>Bewijs:</strong> 90 parallelle API-calls → 0 fatale fouten (was 6 op 60).</li>
+<li><strong>Preventie:</strong> bij poll-gebaseerde protocollen op SQLite altijd <code>BEGIN IMMEDIATE</code>,</li>
+</ul>
+<p>  getrottelde GC en een retry-helper; stresstest vóór livegang.</p>
+<h2>BUG-008 — GC kon een verzoek met HTTP 500 laten klappen (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom (latent, niet in het veld gezien):</strong> willekeurige 500&#x27;s op <code>/videopac/api/</code></li>
+</ul>
+<p>  onder gelijktijdige schrijvers, precies waar elders een nette 503 verschijnt.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> een telefoon-joystick of pairende gast krijgt een harde fout op een</li>
+</ul>
+<p>  verzoek dat inhoudelijk correct is — en de fout komt uit huishouding, niet uit zijn actie.</p>
+<ul>
+<li><strong>RCA technisch:</strong> <code>gc()</code> deed vijf schrijfacties (<code>INSERT meta</code>, 3× <code>DELETE</code>, <code>exec</code>)</li>
+</ul>
+<p>  <strong>buiten</strong> <code>withRetry()</code>. Een SQLITE_BUSY daar was dus een ongevangen <code>PDOException</code> ⇒   fatale PHP-fout. Dat SQLITE_BUSY echt optreedt is gemeten: 150 s spec-cadans gaf 3×   <code>503</code> op het withRetry-plafond (1131/1170/1236 ms). Bovendien was het GC-blok niet   geserialiseerd: élk verzoek dat het 60 s-venster tegelijk passeerde draaide het volledige   schrijfblok.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> de schrijf-hygiëne-regel uit BUG-007 stond wel in ARCHITECTURE.md</li>
+</ul>
+<p>  (&quot;alle schrijfacties lopen via <code>withRetry()</code>&quot;) maar was nergens afdwingbaar; de GC viel   buiten het beeld omdat hij geen &quot;endpoint&quot; is.</p>
+<ul>
+<li><strong>Fix:</strong> alle vijf schrijfacties via <code>withRetry(..., $fatal: false)</code> (huishouding mag een</li>
+</ul>
+<p>  legitiem verzoek niet laten falen — bij aanhoudende druk slaat de GC de ronde over) +   het GC-venster atomair claimen met <code>INSERT … ON CONFLICT DO UPDATE … WHERE meta.v &lt;= cutoff</code>.</p>
+<ul>
+<li><strong>Bewijs:</strong> 95 s belasting met spec-cadans (2 controllers @2 Hz + host-poll), 1085</li>
+</ul>
+<p>  verzoeken inclusief een GC-ronde: 0 × 5xx, 1083 × 200, 2 × 503 (0,18%).</p>
+<ul>
+<li><strong>Preventie:</strong> &quot;alle schrijfacties via de retry-helper&quot; telt óók voor code die geen</li>
+</ul>
+<p>  endpoint is; bij een throttle-marker altijd de claim zelf atomair maken, anders is de   throttle alleen een gemiddelde en geen garantie.</p>
+<h2>BUG-009 — Speler 2 kon dubbel bezet raken (gast + telefoon) (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> met een telefoon in slot 1 gaf <code>pair-join</code> gewoon 200; daarna toonde de</li>
+</ul>
+<p>  pagina &quot;📱 Speler 2 → verbonden&quot; en de telefoon &quot;Verbonden&quot;, terwijl zijn invoer nergens   aankwam. Omgekeerd kreeg een legitieme telefoon <code>409 &quot;maximaal 2 joysticks&quot;</code> terwijl er   maar één joystick hing (de gast bezette slot 1).</p>
+<ul>
+<li><strong>RCA functioneel:</strong> drie partijen (server, host-UI, telefoon) vertelden drie verschillende</li>
+</ul>
+<p>  verhalen over wie speler 2 is; de gebruiker ziet &quot;verbonden&quot; en krijgt niets.</p>
+<ul>
+<li><strong>RCA technisch:</strong> de cap was asymmetrisch — <code>ctrl-join</code> telde <code>sessions.guest_token</code> mee</li>
+</ul>
+<p>  als bezet slot 1, maar <code>pair-join</code> deed geen enkele query op <code>controllers</code>.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> &quot;wie is speler 2&quot; was op twee plaatsen gemodelleerd (een kolom in</li>
+</ul>
+<p>  <code>sessions</code> en rijen in <code>controllers</code>) zonder één plek die de invariant bewaakt.</p>
+<ul>
+<li><strong>Fix:</strong> <code>pair-join</code> draait nu in <code>BEGIN IMMEDIATE</code> en weigert met `409 &quot;speler 2 is bezet</li>
+</ul>
+<p>  door een telefoon-joystick&quot;` als slot 1 bezet is of beide slots vol zijn. Maximaal 2   spelers per sessie, ongeacht de mix. Client-commentaar en ARCHITECTURE.md die het   rand-geval &quot;accepteerden&quot; zijn vervangen door de regel zelf.</p>
+<ul>
+<li><strong>Bewijs (live):</strong> controller in slot 1 → <code>pair-join</code> = <code>409</code>; na <code>ctrl-leave</code> → <code>200</code>;</li>
+</ul>
+<p>  2 controllers → <code>pair-join</code> = <code>409</code>; gast + controller slot 0 → 3e join = <code>409</code>.</p>
+<ul>
+<li><strong>Preventie:</strong> een capaciteitsregel hoort aan <strong>beide</strong> kanten van de deur te hangen; een</li>
+</ul>
+<p>  gedocumenteerd &quot;rand-geval&quot; dat drie componenten laat tegenspreken is een bug, geen keuze.</p>
+<h2>BUG-010 — Telefoon-joystick viel na exact 10 minuten stil (Rood, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> speel je solo met de telefoon als joystick, dan reageerde de stick na tien</li>
+</ul>
+<p>  minuten nergens meer op — terwijl de telefoon &quot;Verbonden — je input gaat live naar de   Videopac-pagina&quot; bleef tonen en de server elke POST met <code>200 {&quot;ok&quot;:true}</code> beantwoordde.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> het hoofdscenario van v0.4.0 (telefoon = joystick, zonder gast) werd</li>
+</ul>
+<p>  door de sessie zelf afgebroken, zonder enig signaal aan de gebruiker.</p>
+<ul>
+<li><strong>RCA technisch:</strong> <code>startHost()</code> zette een <code>setTimeout</code> van 10 min die <code>teardown()</code> deed</li>
+</ul>
+<p>  als de WebRTC-<code>connectionState</code> dan niet <code>connected</code> was. Zonder gast blijft die op <code>new</code>,   dus de timer vuurde altijd. <code>teardown()</code> zette <code>state.mode = null</code> ⇒ <code>ctrlPad.hostToken()</code>   null ⇒ host stopte met pollen. De serversessie leefde intussen 4 uur door.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> v0.3.x kende maar één reden voor een sessie (&quot;Samen spelen&quot;), dus</li>
+</ul>
+<p>  &quot;geen gast&quot; = &quot;mislukt&quot;. v0.4.0 gaf diezelfde sessie een tweede rol (telefoon-joysticks)   zonder die aanname te herzien — een levensduur-regel die stilzwijgend van betekenis   veranderde.</p>
+<ul>
+<li><strong>Fix:</strong> de timer verloopt alleen nog de <strong>melding</strong>; de sessie blijft leven. Wegvallen van</li>
+</ul>
+<p>  de gast ruimt alleen de WebRTC-helft op (<code>closePeer</code> + <code>rearmHost</code>). De host stopt zelf met   ⏹ Stop sessie — die knop is nu actief zodra er een sessie is (<code>getStatus().active</code>) in   plaats van pas bij een verbonden gast, en roept <code>pair-end</code> aan zodat ook de serversessie,   de controllers en de code meteen verdwijnen. Een herlaad van de hostpagina herstelt de   sessie uit <code>localStorage</code> (<code>pairPlay.restore()</code>) in plaats van de telefoons te slopen.</p>
+<ul>
+<li><strong>Preventie:</strong> time-outs die iets <strong>beëindigen</strong> moeten benoemen wat er precies verloopt</li>
+</ul>
+<p>  (hier: het wachten op een gast, niet de sessie). Krijgt een bestaand mechanisme een tweede   gebruiker, dan is de levensduur-aanname onderdeel van de impact-check.</p>
+<h2>BUG-011 — Stick bleef &quot;ingedrukt&quot; als het pollen zelf faalde (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> bij een netwerkhik, een <code>503</code> of een verlopen sessie bleef de laatst</li>
+</ul>
+<p>  ontvangen richting aan de emulator doorgegeven — bij een 401 permanent, want dan slaagde   geen enkele poll meer. Op het scherm bleef &quot;verbonden&quot; staan.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> het ergste faalgedrag dat een joystick kan hebben (blijven duwen)</li>
+</ul>
+<p>  trad juist op bij storing, precies wanneer de speler er niets aan kan doen.</p>
+<ul>
+<li><strong>RCA technisch:</strong> <code>ctrlPad.tick()</code> deed <code>.then(r =&gt; r.json())</code> zonder <code>r.ok</code> te testen en</li>
+</ul>
+<p>  slikte alle fouten (<code>.catch(() =&gt; {})</code>). Bij een fout werd <code>apply()</code> niet aangeroepen,   dus <code>S.joyCtrl</code> bleef staan. De enige failsafe (<code>age_ms &gt; 2000</code>) leest een veld uit het   antwoord en werkt dus alleen als de poll slaagt — geen tegenhanger van de watchdog die de   oude BLE-route wél had.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> de failsafe was gemodelleerd op de bron (telefoon stil) en niet op</li>
+</ul>
+<p>  het transport (route stuk), terwijl het transport er in de nieuwe opzet bij is gekomen.</p>
+<ul>
+<li><strong>Fix:</strong> HTTP-status én vorm van het antwoord worden gecontroleerd; een watchdog op de</li>
+</ul>
+<p>  laatste <strong>geslaagde</strong> poll zet na <code>CTRL_STALE_MS</code> alle controller-maskers op 0; de storing   komt met een eigen tekst in <code>#ctrlStatus</code> (401/503/geen verbinding) en na een fout geldt   1000 ms backoff. <code>CTRL_STALE_MS</code> van 2000 → 3000 ms, omdat 500 ms heartbeat + mobiele RTT   al 1600-2000 ms per gemiste heartbeat oplevert (onderbouwing in ARCHITECTURE.md).</p>
+<ul>
+<li><strong>Preventie:</strong> elke failsafe die op data uit een antwoord leunt, heeft een tweede nodig die</li>
+</ul>
+<p>  op het uitblijven van dat antwoord leunt; fouten nooit stil slikken in een besturingspad.</p>
+<h2>BUG-009 — Sessie viel weg vlak na verbinden/spelkeuze (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom (melding gebruiker):</strong> sessie tot stand gekomen, power-cycle gedraaid, spel</li>
+</ul>
+<p>  gekozen met &quot;1&quot; → sessie verbroken. Gereproduceerd als: gast krijgt   <code>503 &quot;database bezet, probeer opnieuw&quot;</code> bij <code>pair-join</code>.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> samen spelen brak af op willekeurige momenten.</li>
+<li><strong>RCA technisch:</strong> <code>rtc-signal-poll</code> nam <strong>elke 500 ms een schrijfslot</strong></li>
+</ul>
+<p>  (<code>BEGIN IMMEDIATE</code>) ook als er niets te verwijderen was. Samen met de nieuwe   <code>ctrl-poll</code> (4-5 Hz), de GC en een gelijktijdig joinende gast liep de   <code>withRetry()</code>-budget (25×40 ms) af → 503 midden in de pairing-flow.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> een poll-protocol is lees-zwaar; het ontwerp behandelde</li>
+</ul>
+<p>  elke poll als schrijfoperatie (BUG-007 loste de lock-fatals op, niet de oorzaak).</p>
+<ul>
+<li><strong>Fix:</strong> poll doet eerst een read-only telling; alleen als er signalen klaarstaan</li>
+</ul>
+<p>  wordt het schrijfslot genomen. Daarmee verdwijnt ~95% van de schrijfsloten.</p>
+<ul>
+<li><strong>Bewijs:</strong> drie volledige e2e-runs (verbinden → auto power-cycle → spel starten met</li>
+</ul>
+<p>  &quot;1&quot; → 12 s doorspelen): 3/3 zonder breuk, gaststream 15 s doorlopend. Vóór de fix:   breuk binnen 1 s.</p>
+<ul>
+<li><strong>Preventie:</strong> in poll-protocollen altijd read-first; schrijfslot pas als er werk is.</li>
+</ul>
+<h2>BUG-010/011 — Zwart beeld bij de gast, sessie effectief weg (Geel, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom (melding gebruiker, 2×):</strong> vlak na het kiezen van een spel zwart beeld bij</li>
+</ul>
+<p>  de gast en de sessie feitelijk verdwenen.</p>
+<ul>
+<li><strong>RCA — twee onafhankelijke oorzaken, beide gefixt:</strong></li>
+</ul>
+<p>  1. <strong>Tijdelijke hapering werd definitief einde.</strong> <code>connectionState === &#x27;disconnected&#x27;</code>      werd gelijkgesteld aan <code>failed</code>/<code>closed</code> en gaf meteen <code>teardown()</code>. Bij het starten      van een spel piekt de CPU (emulatie 50 Hz + video-encoder + audio) en meldt WebRTC      routinematig even <code>disconnected</code>. De gast brak dan af en viel terug op zijn eigen      lege canvas — vandaar het zwarte beeld. <strong>Fix:</strong> herstelperiode van 8 s met zichtbare      status, ICE-restart bij <code>failed</code>, pas daarna opgeven; beeld blijft staan.   2. <strong><code>database is locked</code> bij <code>pair-join</code> (503).</strong> Niet door contentie: PDO-SQLite hield      een <strong>niet-uitgelezen SELECT-cursor</strong> open, waardoor een schrijfactie op dezelfde      verbinding blokkeerde — geen enkele retry hielp, want de cursor bleef het hele      verzoek open. <strong>Fix:</strong> alle enkelvoudige leesacties via <code>fetchRow()</code>/<code>fetchVal()</code>,      die de cursor sluiten. Aanvullend: poll doet read-first en gebruikt geen expliciete      transactie meer in het hete pad.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> onze eigen tests keken naar &quot;verbonden ja/nee&quot; op één moment;</li>
+</ul>
+<p>  ze dekten een hapering-onder-belasting niet af.</p>
+<ul>
+<li><strong>Bewijs:</strong> volledige e2e (verbinden → auto power-cycle → spel starten met &quot;1&quot; →</li>
+</ul>
+<p>  doorspelen) <strong>3/3 zonder breuk</strong>, gaststream ~15 s doorlopend. Vóór de fix 2 van de 4.</p>
+<ul>
+<li><strong>Preventie:</strong> (a) <code>disconnected</code> nooit als eindtoestand behandelen; (b) bij PDO altijd</li>
+</ul>
+<p>  <code>closeCursor()</code> na een enkelvoudige fetch — vastgelegd als patroon hieronder.</p>
+<h2>Terugkerende patronen</h2>
+<p>1. <strong>Rol-asymmetrie in gedeelde tabellen</strong> (BUG-003/003b/004) — host en gast delen één    sessierij; elke query moet expliciet zeggen welke rol hij bedoelt. 2. <strong>Artefact bereikt de gebruiker niet</strong> (BUG-002) — content-versioning boven cache-headers. 3. <strong>Openstaande PDO-cursor blokkeert eigen schrijfactie</strong> (BUG-011) — na elke    enkelvoudige <code>fetch()</code>/<code>fetchColumn()</code> de cursor sluiten; retries helpen niet. 4. <strong>Schrijfdruk op SQLite</strong> (BUG-007/008) — pollen vermenigvuldigt writes; throttle GC,    neem schrijfsloten direct, maak schrijfacties herhaalbaar — en controleer of de regel    ook geldt voor code die geen endpoint is. 4. <strong>Aanname die van betekenis verandert</strong> (BUG-009/010) — v0.4.0 gaf de sessie een tweede    rol (telefoon-joysticks). Elke regel die &quot;sessie&quot; of &quot;speler 2&quot; definieert moest opnieuw    langs: levensduur (BUG-010) en capaciteit (BUG-009) waren stilzwijgend nog v0.3.x. 5. <strong>Failsafe alleen op de bron</strong> (BUG-011) — bij een netwerkprotocol hoort naast &quot;de bron    is stil&quot; ook &quot;de route is stuk&quot;; anders bevriest de laatste waarde precies bij storing.</p>
+<h2>BUG-012 — Gast kon niet meedoen zodra er twee telefoons hingen (Rood, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> met twee gekoppelde telefoon-joysticks gaf <code>pair-join</code> 409 &quot;speler 2 is</li>
+</ul>
+<p>  bezet door een telefoon-joystick&quot;; de gast stond buiten en moest wachten tot iemand   zijn telefoon losmaakte.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> één code voor drie rollen. Wie hem intikte, bepaalde niet wát hij</li>
+</ul>
+<p>  werd — dat besliste de server, op volgorde van binnenkomst.</p>
+<ul>
+<li><strong>RCA technisch:</strong> <code>ctrl-join</code> zocht het laagste vrije slot en telde de gast mee als</li>
+</ul>
+<p>  speler 2; <code>pair-join</code> moest daar spiegelbeeldig naar kijken (de BUG-009-fix). Twee   endpoints die elkaars boekhouding moesten kennen — elke uitbreiding brak die weer.</p>
+<ul>
+<li><strong>RCA architectonisch:</strong> de schaarste was kunstmatig. De console heeft twee poorten, maar</li>
+</ul>
+<p>  niets dwingt af dat maar één bron per poort mag sturen; toetsenbord en gamepad deelden er   al één zonder enig probleem (<code>pushJoy</code> OR&#x27;t ze).</p>
+<ul>
+<li><strong>Fix (v0.5.0):</strong> drie codes per sessie — gastcode, joystickcode P1, joystickcode P2. De</li>
+</ul>
+<p>  rol volgt uit de code, dus de server wijst niets meer toe en de kruisvalidatie tussen de   twee endpoints is vervallen. Gast en telefoon-P2 worden ge-OR&#x27;d, net als alle andere   bronnen; <code>guestOwnsPlayer2()</code> is verwijderd.</p>
+<ul>
+<li><strong>Preventie:</strong> als twee endpoints elkaars capaciteit moeten bewaken, is de sleutel te grof.</li>
+</ul>
+<p>  Geef elke rol een eigen sleutel voordat je de bewaking uitbreidt.</p>
+<h2>BUG-013 — Versie van de joystick-app liep stil uit de pas (Groen, closed 2026-07-27)</h2>
+<ul>
+<li><strong>Symptoom:</strong> <code>app/build.gradle.kts</code> bouwde <code>0.4.0-Rusch</code> terwijl de repo op <code>0.4.2-Magnavox</code></li>
+</ul>
+<p>  stond. Een APK zei dus iets anders dan de release waar hij bij hoorde.</p>
+<ul>
+<li><strong>RCA functioneel:</strong> bij een klacht is de eerste vraag &quot;welke versie draai je&quot; — en dat</li>
+</ul>
+<p>  antwoord was fout.</p>
+<ul>
+<li><strong>RCA technisch:</strong> de versie stond hardcoded in het buildbestand, náást <code>version.json</code>.</li>
+<li><strong>RCA architectonisch:</strong> lock-step is een familieafspraak, maar één repo las hem niet.</li>
+<li><strong>Fix:</strong> <code>build.gradle.kts</code> leest <code>version.json</code> (<code>JsonSlurper</code>) en faalt als het veld mist.</li>
+<li><strong>Preventie:</strong> een lock-step-versie hoort nergens tweemaal te staan; een tweede plek is</li>
+</ul>
+<p>  geen kopie maar een toekomstig verschil.</p>
+<h2>Bevindingen uit de testronde v0.5.0 (geen bugs in de app)</h2>
+<ul>
+<li><strong><code>test_M7_real_rom_vp01pl</code> stond sinds de start op SKIP.</strong> Zonder <code>G7K_ROMDIR</code> slaat de</li>
+</ul>
+<p>  test zichzelf stil over, en dat was altijd zo — de suite meldde 85 pass, 1 skip en zag er   groen uit. Met de juiste ROM erbij (Videopac nr 1 &quot;plus&quot;, 8 KB, CRC <code>EE3EE642</code>) draait hij   wél: 86/86. Aandachtspunt voor later: de test geeft FAIL zowel bij een kapotte emulator als   bij een verkeerd bestand met de juiste naam — die twee horen te verschillen.</p>
+<ul>
+<li><strong>Twee lege canvassen zijn ook &quot;gelijk&quot;.</strong> De eerste versie van <code>netplay_e2e.py</code> zei groen</li>
+</ul>
+<p>  op twee stilstaande emulators. De test eist nu eerst beweging vóór hij gelijkheid als bewijs   aanvaardt.</p>
+<ul>
+<li><strong>Gelijk op de klok is niet gelijk in de emulatie.</strong> Host en gast lopen frames uit elkaar;</li>
+</ul>
+<p>  hun canvassen op hetzelfde moment vergelijken geeft valse alarmen. De juiste maat is de   state-hash bij hetzelfde framenummer.</p>
+<h2>Geprobeerd en teruggedraaid — savestate sturen bij lang wachten (27-07)</h2>
+<p>Bij het verhuizen van netplay naar <code>/videopac/</code> leek het slim om de host na 2 s wachten een savestate te laten sturen: &quot;de ander loopt achter, zet hem bij&quot;. Gemeten resultaat: host bleef op <strong>frame 15</strong> steken met 8 resyncs in 20 s.</p>
+<ul>
+<li><strong>RCA:</strong> de aanname klopte niet. Wie stalt is juist de kant die niet vérder kan —</li>
+</ul>
+<p>  hij wacht op invoer. De ander loopt dus vóór, en een savestate van de wachtende   kant zet die vooruitlopende medespeler terug. Bij het opstarten (host wacht normaal   even op een ladende gast) ging dat meteen in herhaling.</p>
+<ul>
+<li><strong>Werkelijk gedrag:</strong> inhalen kost hooguit <code>delay</code> frames, want de wachtende kant</li>
+</ul>
+<p>  is zélf ook gestopt. Gemeten hersteltijd na 2,5 s én na 6 s bevriezing: <strong>0,2-0,3 s</strong>.</p>
+<ul>
+<li><strong>Les:</strong> een herstelmechanisme mag niet op een vermoeden over &quot;wie loopt achter&quot;</li>
+</ul>
+<p>  worden gebouwd; meet eerst wat er werkelijk gebeurt. Savestates blijven voor waar ze   voor zijn: een echte desync (ongelijke state-hash).</p>
+<h2>Afgewogen en niet gefixt (bewust)</h2>
+<ul>
+<li><strong>Code = bearer-credential (4 uur).</strong> <code>sessions.code</code> blijft sinds v0.4.0 geldig omdat</li>
+</ul>
+<p>  controllers hem nodig hebben; wie hem ziet kan een joystick-slot pakken. Geen tweede   factor, geen rate limiting. Geaccepteerd: het geeft uitsluitend 5 bits joystick-invoer   (geen data, geen ROM&#x27;s, geen account). Blootstelling wel begrensd: ⏹ Stop sessie roept   <code>pair-end</code> aan en maakt de code direct ongeldig (was: tot 4 uur). Zie ARCHITECTURE.md,   &quot;Restrisico&quot;.</p>
+<ul>
+<li><strong>Effectieve pollfrequentie 4-5 Hz i.p.v. 10 Hz.</strong> De <code>inFlight</code>-gate blijft: parallelle</li>
+</ul>
+<p>  polls zouden een wachtrij en dus méér latentie geven. Niet de code aangepast maar de   claim: code, ARCHITECTURE.md en CLAUDE.md noemen nu de gemeten waarde.</p>
+<ul>
+<li><strong>Gast kan na een herlaad niet terugkeren</strong> op dezelfde sessie (zijn <code>guest_token</code> blijft</li>
+</ul>
+<p>  geclaimd). Herstellen zou WebRTC-renegotiatie op een halfdode peer vragen; de host start   eenvoudig opnieuw. Gedocumenteerd bij &quot;Beperkingen&quot;.</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>docs/BUGLIST.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

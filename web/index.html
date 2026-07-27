@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideopacHorse — Philips Videopac G7000 emulator met netplay</title>
-<link rel="stylesheet" href="style.css?v=0.6.0">
+<link rel="stylesheet" href="style.css?v=0.6.1">
 </head>
 <body>
 <div class="wrap">
@@ -130,20 +130,40 @@
     laadt hem dan automatisch en beide machines beginnen opnieuw.</p>
   </div>
 
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>📚 Hoe dit ding in elkaar zit</strong>
+      <span class="help">alles wat we hebben vastgelegd</span>
+    </div>
+    <p class="help">Deze emulator is van de grond af gebouwd en elke keuze is opgeschreven —
+    inclusief de fouten en wat we ervan geleerd hebben. Als je wilt weten waaróm iets werkt
+    zoals het werkt, staat het antwoord hier.</p>
+    <div class="row" style="margin-top:8px">
+      <a href="architectuur/" class="doclink"><strong>🗺 Architectuurplaat</strong><br>
+        <span class="help">vijf gezichtspunten, met afspeelbare scenario's</span></a>
+      <a href="docs/" class="doclink"><strong>📚 Documentatie</strong><br>
+        <span class="help">architectuur, principes, afhankelijkheden</span></a>
+      <a href="docs/buglist.html" class="doclink"><strong>🐞 Buglijst</strong><br>
+        <span class="help">elke bug met oorzaakanalyse</span></a>
+      <a href="docs/principles.html" class="doclink"><strong>⚖ Principes</strong><br>
+        <span class="help">twaalf keuzes, mét het waarom</span></a>
+    </div>
+  </div>
+
   <!-- Configuratiepaneel wordt opgebouwd door app.js (CFG_COLORS/CFG_RANGES) —
        één bron voor beide pagina's, zie DESIGN_TOKENS.md -->
   <details class="config card" id="configCard"></details>
 
   <footer>
-    VideopacHorse v<span id="verFoot">0.5.0</span> · AGPL-3.0 ·
+    VideopacHorse v<span id="verFoot">0.6.0</span> · AGPL-3.0 ·
     <a href="https://github.com/cpaglebbeek/VideopacHorse_Core">broncode</a> ·
     100% from-scratch engine, geen ROMs op deze server ·
     <a href="stream/">gearchiveerde streamversie</a>
   </footer>
 </div>
-<script src="g7000.js?v=0.6.0"></script>
-<script src="netplay.js?v=0.6.0"></script>
-<script src="app.js?v=0.6.0"></script>
+<script src="g7000.js?v=0.6.1"></script>
+<script src="netplay.js?v=0.6.1"></script>
+<script src="app.js?v=0.6.1"></script>
 <script>
 /* UI-wiring. netplay levert dezelfde vorm als pairPlay, dus app.js (telefoon-
  * joysticks, gast-invoer) werkt hier ongewijzigd. */

@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Afhankelijkheden — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>DEPENDENCIES.md — VideopacHorse_Web</h1>
+<p>Per eenheid: waar hangt hij van af, en — belangrijker — <strong>wat breekt er als hij wijzigt?</strong> Dat tweede is waar dit document voor bedoeld is; de eerste kolom is af te lezen uit de code.</p>
+<h2>Eenheden</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Eenheid</th>
+<th>Hangt af van</th>
+<th>Als dit wijzigt, breekt…</th>
+</tr></thead><tbody>
+<tr><td><code>web/index.html</code> (netplay, <code>/videopac/</code>)</td><td><code>style.css</code>, <code>app.js</code>, <code>netplay.js</code>, <code>g7000.js</code>+<code>.wasm</code>, <code>games.json</code>, <code>api/</code></td><td>element-id&#x27;s zijn het contract met <code>app.js</code> én <code>netplay.js</code>. Hernoem je <code>#screen</code>, <code>#btnStart</code>, <code>#fps</code>, <code>#chkNtsc</code>, <code>#configCard</code>, <code>#gamesList</code> of <code>#ctrlStatus</code>, dan faalt de glue stil (geen exception, wél geen beeld). <code>#netCode</code>/<code>#netCodeP1</code>/<code>#netCodeP2</code> worden door <code>netplay.showCodes()</code> gevuld</td></tr>
+<tr><td><code>web/stream/index.html</code> (archief)</td><td>idem, plus <code>pairplay.js</code>, met <code>VPH_BASE</code>/<code>VPH_API</code> naar <code>../</code></td><td>dezelfde id-afhankelijkheid. Vergeet je <code>window.VPH_BASE</code> te zetten, dan zoekt <code>app.js</code> de wasm en <code>games.json</code> onder <code>/stream/</code> en laadt er niets</td></tr>
+<tr><td><code>web/2/index.html</code> (doorverwijzing)</td><td><code>style.css</code></td><td>niets — puur een redirect. Verwijderen breekt oude links en bladwijzers naar <code>/videopac/2/</code></td></tr>
+<tr><td><code>web/app.js</code></td><td><code>g7000.js</code> (WASM-module), DOM-id&#x27;s, <code>VPH_BASE</code>/<code>VPH_API</code></td><td><strong>de meest gedeelde eenheid</strong>: raakt beide pagina&#x27;s tegelijk. <code>pushJoy()</code> is het invoerknooppunt (toetsenbord, gamepad, telefoon, peer); <code>pushKey()</code> idem voor consoletoetsen. Beide hebben een netplay-tak — verwijder je die, dan gaat invoer rechtstreeks naar de core en lopen de machines uit de pas. <code>buildConfigPanel()</code> levert het configuratiepaneel voor beide pagina&#x27;s</td></tr>
+<tr><td><code>web/netplay.js</code></td><td><code>app.js</code> (<code>S</code>, <code>crc32</code>, <code>idbGet/Put</code>, <code>gamesFetchRom</code>, <code>applyBios</code>, <code>pushBytes</code>, <code>setBadge</code>), <code>api/</code>, WASM-savestate-exports</td><td>levert een <code>pairPlay</code>-vormige API zodat <code>app.js</code> niet hoeft te weten welke variant draait. Wijzigt die vorm (<code>getStatus</code>, <code>sendGuestInput</code>, <code>restore</code>, <code>stop</code>), dan breken de telefoon-joysticks (<code>ctrlPad</code> leest <code>hostToken</code> daaruit)</td></tr>
+<tr><td><code>web/stream/pairplay.js</code></td><td><code>app.js</code>, <code>api/</code>, <code>VPH_API</code></td><td>zelfde interface-contract als <code>netplay.js</code>. Gearchiveerd: alleen onderhoud, geen nieuwe functies</td></tr>
+<tr><td><code>web/style.css</code></td><td>—</td><td>gedeeld door alle drie de pagina&#x27;s. Een token hernoemen raakt <code>DESIGN_TOKENS.md</code> én <code>CFG_COLORS</code>/<code>CFG_RANGES</code> in <code>app.js</code>: het configuratiepaneel bindt op variabelenaam</td></tr>
+<tr><td><code>web/api/index.php</code></td><td>SQLite op <code>/var/lib/videopac/pairing.db</code>, php8.3-fpm</td><td>het endpoint-contract is gedeeld met <code>netplay.js</code>, <code>pairplay.js</code>, <code>app.js</code> (<code>ctrlPad</code>) <strong>en de Android-app</strong> (<code>VideopacHorse_Joystick</code>, <code>Api.kt</code>). Een veldnaam wijzigen in <code>pair-create</code> of <code>ctrl-join</code> breekt een APK die al bij mensen op de telefoon staat</td></tr>
+<tr><td><code>web/games.json</code></td><td>externe archive.org-URL&#x27;s</td><td><code>crc32</code> is de sleutel: <code>netplay.js</code> zoekt de cartridge van de host op CRC. Wijzigt een CRC of valt een URL weg, dan kan de gast het spel niet zelf ophalen en valt hij terug op peer-to-peer-overdracht</td></tr>
+<tr><td><code>web/g7000.{js,wasm}</code></td><td><code>VideopacHorse_Core</code> (<code>make wasm</code>)</td><td>build-artefact — nooit met de hand wijzigen. De versiestring in de wasm is bij netplay een <strong>handshake-eis</strong>: verschillen host en gast, dan weigert de sessie</td></tr>
+<tr><td><code>build.sh</code></td><td><code>../VideopacHorse_Core</code>, <code>version.json</code></td><td>zet cache-busters in alle drie de pagina&#x27;s. Voeg je een vierde pagina toe en vergeet je die hier, dan draait die met een oude wasm — precies wat bij netplay niet mag</td></tr>
+<tr><td><code>tests/</code></td><td><code>web/</code>, php, Playwright, ROM&#x27;s via <code>VPH_ROMDIR</code></td><td>draait tegen een wegwerpkopie met een eigen database; raakt de productie-DB nooit</td></tr>
+</tbody></table></div>
+<h2>Gedeelde afspraken die niet in code staan</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Afspraak</th>
+<th>Wie houdt zich eraan</th>
+<th>Gevolg bij afwijking</th>
+</tr></thead><tbody>
+<tr><td>Joystick-mask = 5 bits, bit0=UP … bit4=FIRE</td><td><code>app.js</code>, <code>netplay.js</code>, <code>api/index.php</code>, Android-app, <code>g7000.h</code> (<code>G7K_JOY_*</code>)</td><td>invoer komt op de verkeerde richting uit; geen foutmelding</td></tr>
+<tr><td>Code = 6 tekens uit <code>A-Z2-9</code></td><td><code>api/</code>, beide pagina&#x27;s, Android-app</td><td>een geldige code wordt geweigerd door de invoervalidatie</td></tr>
+<tr><td>Slot 0 = speler 1, slot 1 = speler 2; <code>owner</code> = host of guest</td><td><code>api/</code>, <code>ctrlPad</code>, Android-app</td><td>telefoon bestuurt de verkeerde speler, of de invoer komt aan de verkeerde kant binnen</td></tr>
+<tr><td>Lock-step versienummer</td><td>alle 6 repo&#x27;s + <code>g7000.h</code> + de gedeployde wasm</td><td>netplay-handshake weigert; APK meldt een andere versie dan de release</td></tr>
+</tbody></table></div>
+<h2>Externe afhankelijkheden</h2>
+<div class='tablewrap'><table><thead><tr>
+<th>Extern</th>
+<th>Gebruikt door</th>
+<th>Faalt hij, dan…</th>
+</tr></thead><tbody>
+<tr><td><code>stun.l.google.com</code> / <code>stun1</code></td><td>WebRTC in beide varianten</td><td>komt de P2P-verbinding niet tot stand. Er is <strong>geen TURN</strong>: achter symmetrische NAT werkt samen spelen niet. Gemeten faalgeval: 1 op 5 lokale testruns</td></tr>
+<tr><td><code>archive.org/cors/…</code></td><td>GAMES-lijst, BIOS-knop, netplay-assets</td><td>kan de gast de cartridge niet zelf ophalen; netplay valt terug op peer-to-peer met melding</td></tr>
+<tr><td>php8.3-fpm + SQLite op HC55</td><td>pairing/signaling</td><td>geen nieuwe sessies; lopende WebRTC-verbindingen blijven werken (P2P)</td></tr>
+</tbody></table></div>
+<p><strong>Let op bij een API-deploy:</strong> php-fpm draait met <code>opcache.enable=On</code> en <code>opcache.revalidate_freq=2</code>. De eerste seconden ná een <code>rsync</code> van <code>api/index.php</code> kan dus nog de oude code draaien. Bij v0.6.0 gaf dat een verwarrende meting: de tests waren groen (nieuwe code, nieuwe kolommen) terwijl een <code>PRAGMA table_info</code> vlak na de deploy nog het oude schema toonde. Onschadelijk omdat de migratie idempotent is en alsnog draait, maar controleer een schemawijziging pas een paar seconden ná de deploy — of forceer met <code>systemctl reload php8.3-fpm</code>.</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>docs/DEPENDENCIES.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overzicht — VideopacHorse</title>
+<link rel="stylesheet" href="../style.css?v=0.6.1">
+<style>
+.doc { max-width: 900px; margin: 0 auto; padding: 18px; }
+.doc h1 { font-size: var(--h1-size); border-bottom: 2px solid var(--accent); padding-bottom: 6px; }
+.doc h2 { margin-top: 28px; color: var(--accent); }
+.doc h3 { margin-top: 20px; }
+.doc table { border-collapse: collapse; width: 100%; font-size: .9em; }
+.doc th, .doc td { border: 1px solid var(--panel-border); padding: 6px 9px; text-align: left; vertical-align: top; }
+.doc th { background: var(--kbd-bg); }
+.doc pre { background: var(--kbd-bg); padding: 12px; border-radius: 6px; overflow-x: auto; }
+.doc code { background: var(--kbd-bg); padding: 1px 5px; border-radius: 3px; font-size: .9em; }
+.doc pre code { background: none; padding: 0; }
+.doc blockquote { border-left: 3px solid var(--accent); margin: 12px 0; padding: 4px 14px; color: var(--text-dim); }
+.doc .tablewrap { overflow-x: auto; }
+.doc .nav { margin-bottom: 18px; font-size: .9em; }
+.doc img { max-width: 100%; border-radius: 6px; border: 1px solid var(--panel-border); }
+</style>
+</head>
+<body>
+<div class="doc">
+  <p class="nav"><a href="./">📚 Documentatie</a> · <a href="../">🕹 Emulator</a>
+     · <a href="../architectuur/">🗺 Architectuurplaat</a></p>
+<h1>VideopacHorse_Web</h1>
+<p>Web-frontend (WASM) van de VideopacHorse G7000-emulator. LIVE-doel: <strong>https://horsecloud55.ddns.net/videopac/</strong></p>
+<ul>
+<li>Engine: zusterrepo <a href="https://github.com/cpaglebbeek/VideopacHorse_Core">VideopacHorse_Core</a> — <code>make wasm</code> levert <code>g7000.{js,wasm}</code></li>
+<li>UI: statische single-page app (<code>web/</code>) — canvas + WebAudio + toetsenbord/gamepad</li>
+<li>Samen spelen gaat via <strong>netplay</strong>: beide kanten emuleren zelf, alleen invoer gaat over</li>
+</ul>
+<p>  de lijn (~50 byte/s). Scherper beeld, eigen geluid; hapert de lijn, dan staat het beeld   even stil in plaats van te blokken.</p>
+<ul>
+<li>De oudere variant waarbij de host zijn scherm <em>streamde</em>, staat gearchiveerd op</li>
+</ul>
+<p>  <code>/videopac/stream/</code> — zelfde <code>app.js</code>, zelfde wasm, geen nieuwe functies meer.</p>
+<ul>
+<li>Eén sessie geeft <strong>drie codes</strong>: een gastcode en een joystickcode per speler. De rol zit</li>
+</ul>
+<p>  in de code; bronnen op dezelfde speler tellen bij elkaar op.</p>
+<ul>
+<li><strong>BIOS en game-ROMs upload je zelf</strong> via de file-picker; ze blijven in je browser</li>
+</ul>
+<p>  (IndexedDB) en worden <strong>nooit</strong> naar de server gestuurd. Deze repo en de server   bevatten geen ROMs.</p>
+<h2>Bouwen</h2>
+<pre>
+./build.sh                       # bouwt de core en kopieert naar web/ (beide pagina&#x27;s)
+VPH_ROMDIR=~/roms ./tests/run.sh # API-suite + twee browsersuites (tests/README.md)
+</pre>
+<p>Deploy naar HC55 volgens <code>Meta_Master/SHARED_INFRASTRUCTURE.md</code> (statisch, snippet-patroon).</p>
+  <footer style="margin-top:32px">
+    VideopacHorse v0.6.1 · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Web">broncode</a> ·
+    gegenereerd uit <code>README.md</code> door <code>tools/render_docs.py</code>
+  </footer>
+</div>
+</body>
+</html>
