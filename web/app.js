@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.2.0';
+const BUILD_V = '0.3.0';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
@@ -130,15 +130,15 @@ const S = {
   ring: new Float32Array(32768), ringR: 0, ringW: 0,
   frames: 0, lastFpsT: 0,
   joy: [0, 0],                       /* gecombineerd mask zoals aan de core doorgegeven */
-  joyKb: [0, 0], joyGp: [0, 0], joyBle: [0, 0],   /* per bron; pushJoy OR't ze */
+  joyKb: [0, 0], joyGp: [0, 0], joyBle: [0, 0], joyPeer: [0, 0],   /* per bron; pushJoy OR't ze */
 };
 
-/* Combineer per speler alle input-bronnen (toetsenbord | gamepad | BLE-telefoon)
+/* Combineer per speler alle input-bronnen (toetsenbord | gamepad | BLE-telefoon | peer/DataChannel)
  * en geef alleen bij échte verandering door aan de core. Zo wist een
  * BLE-heartbeat geen toetsenbord-input en vecht een gamepad niet per frame
- * met de telefoon. */
+ * met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler. */
 function pushJoy(p) {
-  const m = (S.joyKb[p] | S.joyGp[p] | S.joyBle[p]) & 0x1f;
+  const m = (S.joyKb[p] | S.joyGp[p] | S.joyBle[p] | S.joyPeer[p]) & 0x1f;
   if (m === S.joy[p]) return;
   S.joy[p] = m;
   if (S.api) S.api.joy(S.sys, p, m);
@@ -284,6 +284,20 @@ function handleKey(ev, down) {
   if (ev.target.tagName === 'INPUT' || ev.target.tagName === 'SELECT') return;
   const k = ev.key.length === 1 ? ev.key.toLowerCase() : ev.key;
   let hit = false;
+
+  // Gast-mode: KEYMAP2-input (speler 2) gaat via DataChannel naar host, niet lokaal
+  if (typeof pairPlay !== 'undefined' && pairPlay.getStatus().mode === 'guest' && k in KEYMAP2) {
+    const mask = KEYMAP2[k];
+    if (down) {
+      S.joyKb[1] |= mask;
+    } else {
+      S.joyKb[1] &= ~mask;
+    }
+    pairPlay.sendGuestInput(S.joyKb[1]);
+    ev.preventDefault();
+    return;
+  }
+
   if (k in KEYMAP1) { S.joyKb[0] = down ? S.joyKb[0] | KEYMAP1[k] : S.joyKb[0] & ~KEYMAP1[k]; pushJoy(0); hit = true; }
   if (k in KEYMAP2) { S.joyKb[1] = down ? S.joyKb[1] | KEYMAP2[k] : S.joyKb[1] & ~KEYMAP2[k]; pushJoy(1); hit = true; }
   if (S.api && !hit && ev.key.length === 1) {
@@ -298,6 +312,8 @@ function handleKey(ev, down) {
 }
 function pollGamepads() {
   const gps = navigator.getGamepads ? navigator.getGamepads() : [];
+  const isGuestMode = (typeof pairPlay !== 'undefined' && pairPlay.getStatus().mode === 'guest');
+
   for (let p = 0; p < 2; p++) {
     const gp = gps[p];
     if (!gp) continue;
@@ -307,7 +323,15 @@ function pollGamepads() {
     if (gp.axes[0] < -0.5 || (gp.buttons[14] && gp.buttons[14].pressed)) m |= JOY.LEFT;
     if (gp.axes[0] > 0.5 || (gp.buttons[15] && gp.buttons[15].pressed)) m |= JOY.RIGHT;
     if (gp.buttons[0] && gp.buttons[0].pressed) m |= JOY.FIRE;
-    if (m !== S.joyGp[p]) { S.joyGp[p] = m; pushJoy(p); }
+
+    // Gast-mode: speler 2 gamepad-input via DataChannel naar host
+    if (isGuestMode && p === 1 && m !== S.joyGp[1]) {
+      S.joyGp[1] = m;
+      pairPlay.sendGuestInput(S.joyKb[1] | S.joyGp[1]);
+    } else if (!isGuestMode && m !== S.joyGp[p]) {
+      S.joyGp[p] = m;
+      pushJoy(p);
+    }
   }
 }
 

@@ -152,6 +152,30 @@ a { color: var(--accent); }
     ondersteunt geen Web Bluetooth — telefoon-joystick werkt alleen in Chrome/Edge.</span></p>
   </div>
 
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>🎭 Samen spelen</strong>
+      <span id="pairplayStatus" class="badge"></span>
+    </div>
+    <div id="pairplayCodeCard" hidden style="margin: 12px 0; padding: 12px; background: var(--kbd-bg); border-radius: 6px; text-align: center;">
+      <p class="help">Deel deze code met je medespeler:</p>
+      <p style="font-size: 2em; letter-spacing: 4px; font-weight: 600; margin: 8px 0;" id="pairplayCode">------</p>
+      <p class="help">(Code is 10 minuten geldig)</p>
+    </div>
+    <div class="row">
+      <button id="pairplayBtnStart" class="primary">🎮 Start sessie (host)</button>
+      <span style="margin: 0 8px;">OF</span>
+      <input type="text" id="pairplayCodeInput" placeholder="6-tekens code…" maxlength="6" style="font: inherit; background: var(--kbd-bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px; width: 120px;">
+      <button id="pairplayBtnJoin" class="primary">▶ Meedoen (gast)</button>
+      <button id="pairplayBtnStop" disabled>⏹ Stop sessie</button>
+    </div>
+    <video id="pairplayRemoteVideo" style="display:none; width:100%; max-width:100%; margin-top:12px; border-radius:6px; border:1px solid var(--panel-border);"></video>
+    <p class="help">Start een sessie als host (je draait de emulator en streamt het scherm) of join als gast
+    (je ziet de stream van de host en stuurt je input als speler 2). Code-uitwisseling: beide kanten moeten
+    op dezelfde netwerk zitten (LAN/internet — WebRTC verbinding is P2P, server ziet alleen handshake-metadata).
+    Audio: gast hoort de host-PC-output (via WebRTC).</p>
+  </div>
+
   <div class="card" id="gamesCard" hidden>
     <div class="row" style="justify-content:space-between">
       <strong>🎮 GAMES</strong>
@@ -218,7 +242,38 @@ a { color: var(--accent); }
     100% from-scratch engine, geen ROMs op deze server.
   </footer>
 </div>
-<script src="g7000.js?v=0.2.0"></script>
-<script src="app.js?v=0.2.0"></script>
+<script src="g7000.js?v=0.3.0"></script>
+<script src="pairplay.js?v=0.3.0"></script>
+<script src="app.js?v=0.3.0"></script>
+<script>
+/* UI wiring voor 🎭 Samen spelen */
+(function(){
+  const el = (id) => document.getElementById(id);
+
+  el('pairplayBtnStart').onclick = () => pairPlay.startHost();
+  el('pairplayBtnJoin').onclick = () => pairPlay.joinGuest(el('pairplayCodeInput').value);
+  el('pairplayBtnStop').onclick = () => {
+    pairPlay.stop();
+    el('pairplayCodeCard').hidden = true;
+    el('pairplayRemoteVideo').style.display = 'none';
+    el('pairplayBtnStop').disabled = true;
+  };
+
+  // Code input: kapitaliseer + valideer
+  el('pairplayCodeInput').addEventListener('input', (ev) => {
+    ev.target.value = ev.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '');
+  });
+
+  // Monitor pairplay status
+  setInterval(() => {
+    const status = pairPlay.getStatus();
+    const btn = el('pairplayBtnStop');
+    btn.disabled = !status.connected;
+    if (status.connected && el('pairplayRemoteVideo').style.display === 'none') {
+      el('pairplayRemoteVideo').style.display = 'block';
+    }
+  }, 500);
+})();
+</script>
 </body>
 </html>

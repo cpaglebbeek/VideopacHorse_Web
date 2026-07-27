@@ -37,6 +37,17 @@ reconnect-pogingen; de notify-listener wordt max één keer per (door Chromium
 per device gecacht) characteristic-object gezet (`WeakSet`), en device-lookup
 loopt via een `WeakMap` — geen listener- of geheugenlek bij reconnects.
 
+
+## pairPlay — 🎭 Samen spelen (v0.3.0)
+
+| Onderdeel | Bestand | Rol |
+|---|---|---|
+| Pairing/signaling-API | `web/api/index.php` | PHP 8.3 + SQLite (`/var/lib/videopac/pairing.db`, WAL, buiten webroot): `pair-create` (6-tekens code A-Z2-9, TTL 10 min, single-use) / `pair-join` / `rtc-signal-send` / `rtc-signal-poll` (poll-and-delete, anti-spam 50/doel, sessie-TTL 4 uur, opportunistische GC). Patroon: iCt_Horse clipboard-api (eigen bouwblok). |
+| WebRTC-module | `web/pairplay.js` | Host: `canvas.captureStream(50)` + WebAudio-tap (`createMediaStreamDestination` naast de speaker-route) + DataChannel "input"; gast: fullscreen `<video>` + input → DataChannel. STUN-only (Google), ICE-trickle met queue, bye/disconnect → failsafe mask 0. |
+| Input-route | `web/app.js` | Gast-input (WASD/gamepad/BLE) gaat via DataChannel; host ontvangt in `S.joyPeer[1]` en OR-t mee in `pushJoy` (zelfde compositing als bleJoy — bronnen overschrijven elkaar nooit). |
+
+Beperkingen (bewust, gedocumenteerd): STUN-only (geen TURN — corporate NAT kan falen); gast-invoer is altijd speler 2; er gaat nooit ROM/BIOS over de lijn, alleen beeld/geluid/input.
+
 ## Ontwerpbeslissingen
 
 1. **Geen server-side component** — juridisch schoon (ROMs verlaten de browser niet) en HC55-deploy blijft triviaal statisch.
