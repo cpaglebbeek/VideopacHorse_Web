@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideopacHorse — Philips Videopac G7000 emulator met netplay</title>
-<link rel="stylesheet" href="style.css?v=0.5.2">
+<link rel="stylesheet" href="style.css?v=0.6.0">
 </head>
 <body>
 <div class="wrap">
@@ -57,6 +57,16 @@
       </div>
     </div>
 
+    <div id="netGuestCodeCard" hidden>
+      <div class="codegrid">
+        <div class="codebox">
+          <span class="role">🎮 Jouw joystickcode</span>
+          <span class="value" id="netCodeGuest">------</span>
+          <span class="hint">voor een telefoon aan <em>jouw</em> kant — telt op bij je eigen invoer</span>
+        </div>
+      </div>
+    </div>
+
     <div class="row">
       <button id="netBtnStart" class="primary">🎮 Start netplay (host)</button>
       <span style="margin: 0 8px;">OF</span>
@@ -86,7 +96,7 @@
     staat hieronder in frames en past zich aan de gemeten looptijd aan). Hapert de verbinding, dan
     staat het beeld even stil in plaats van dat het gaat schokken — beide machines moeten immers
     exact gelijk blijven. Pauzeert één kant, dan wacht de ander; dat is geen storing.
-    Telefoon-joysticks koppelen aan de kant van de <em>host</em>.</p>
+    Telefoon-joysticks koppelen per kant: de host deelt zijn twee joystickcodes, en jij krijgt als gast een eigen code zodra je meedoet. Jouw telefoon telt op bij jouw invoer, niet bij die van de host.</p>
   </div>
 
   <div class="card">
@@ -131,9 +141,9 @@
     <a href="stream/">gearchiveerde streamversie</a>
   </footer>
 </div>
-<script src="g7000.js?v=0.5.2"></script>
-<script src="netplay.js?v=0.5.2"></script>
-<script src="app.js?v=0.5.2"></script>
+<script src="g7000.js?v=0.6.0"></script>
+<script src="netplay.js?v=0.6.0"></script>
+<script src="app.js?v=0.6.0"></script>
 <script>
 /* UI-wiring. netplay levert dezelfde vorm als pairPlay, dus app.js (telefoon-
  * joysticks, gast-invoer) werkt hier ongewijzigd. */

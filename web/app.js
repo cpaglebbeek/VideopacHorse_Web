@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.5.2';
+const BUILD_V = '0.6.0';
 
 /* Basispad-hooks. Sinds v0.5.1 is netplay de gewone versie op /videopac/ en draait
  * de gearchiveerde streamversie DEZE app.js één map dieper (/videopac/stream/) —
@@ -495,11 +495,18 @@ const ctrlPad = {
   retryAt: 0,
   linkErr: '',           /* niet-leeg = storing; wordt in de statusregel getoond */
 
-  /* Host-token, of null als deze pagina geen host is. */
-  hostToken() {
+  /* Het token waarmee we mogen pollen, of null. Sinds v0.5.3 mag ook de GAST
+   * pollen — hij krijgt bij het meedoen een eigen joystickcode en de server geeft
+   * hem alleen de telefoons aan zijn eigen kant. Dat kan alleen waar de gast zelf
+   * emuleert (netplay); in de gearchiveerde streamversie draait bij hem geen
+   * machine om die invoer op toe te passen, dus daar blijft het host-only. */
+  pollToken() {
     if (typeof pairPlay === 'undefined') return null;
     const st = pairPlay.getStatus();
-    return (st && st.mode === 'host' && st.hostToken) ? st.hostToken : null;
+    if (!st) return null;
+    if (st.mode === 'host' && st.hostToken) return st.hostToken;
+    if (st.mode === 'guest' && st.guestToken && typeof netplay !== 'undefined') return st.guestToken;
+    return null;
   },
 
   /* Alle controller-maskers los + slots vergeten. Idempotent. */
@@ -513,7 +520,7 @@ const ctrlPad = {
   },
 
   tick() {
-    const token = this.hostToken();
+    const token = this.pollToken();
     if (!token) {
       if (this.slots[0] || this.slots[1] || this.linkErr) {
         this.linkErr = '';

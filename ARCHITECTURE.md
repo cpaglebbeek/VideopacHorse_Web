@@ -35,8 +35,15 @@ de pairing-API en koppelt met een **joystickcode**; de host haalt de maskers op 
 | Code | Endpoint | Wie | Max |
 |---|---|---|---|
 | `code` (gastcode) | `pair-join` | medespeler op afstand (WebRTC) — speler 2 | 1 |
-| `ctrl_code_p1` | `ctrl-join` | telefoon op speler 1 | 1 |
-| `ctrl_code_p2` | `ctrl-join` | telefoon op speler 2 | 1 |
+| `ctrl_code_p1` | `ctrl-join` | telefoon op speler 1, host-kant | 1 |
+| `ctrl_code_p2` | `ctrl-join` | telefoon op speler 2, host-kant | 1 |
+| `ctrl_code_guest` | `ctrl-join` | telefoon aan de **gast-kant** (v0.6.0) — pas uitgeleverd bij `pair-join` | 1 |
+
+Sinds v0.6.0 hebben controllers een `owner` (`host` of `guest`) en pollt elke kant alleen
+zijn eigen telefoons. Slot 1 kan daardoor twee rijen hebben — één per kant — en dat is geen
+dubbele bezetting maar hetzelfde OR-model: beide dragen bij aan speler 2. De gast-joystick
+werkt alleen in netplay; in de gearchiveerde streamversie draait bij de gast geen machine om
+die invoer op toe te passen.
 
 De rol zit dus in de code; de server wijst niets meer toe. Daarmee vervalt de
 kruisvalidatie tussen `pair-join` en `ctrl-join` die in v0.4.0 nodig was (BUG-009):

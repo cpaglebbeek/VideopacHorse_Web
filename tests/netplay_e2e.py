@@ -201,6 +201,30 @@ with sync_playwright() as pw:
     api({"action": "ctrl-leave", "token": join["ctrl_token"]})
 
 
+    print("== 6b-2. de GAST koppelt zijn eigen telefoon (v0.5.3) ==")
+    # De gast krijgt bij het meedoen een eigen joystickcode. Zijn telefoon hoort bij
+    # ZIJN kant op te tellen — en via de lockstep dus ook bij de host zichtbaar te zijn,
+    # zonder dat de host-telefoons erdoor veranderen.
+    gcode = guest.evaluate("() => (document.getElementById('netCodeGuest')||{}).textContent")
+    check("gast ziet zijn eigen joystickcode", bool(gcode) and len(gcode.strip()) == 6, repr(gcode))
+    gjoin = api({"action": "ctrl-join", "code": gcode.strip()})
+    check("gast-telefoon krijgt slot 1 aan de gast-kant",
+          gjoin.get("slot") == 1 and gjoin.get("owner") == "guest", str(gjoin)[:110])
+    if gjoin.get("ctrl_token"):
+        gezien_gast, gezien_host = [], []
+        for i in range(14):
+            api({"action": "ctrl-input", "token": gjoin["ctrl_token"], "mask": 2})   # DOWN
+            time.sleep(0.25)
+            gezien_gast.append(guest.evaluate("() => netplay.debug().joySources.ctrl[1]"))
+            hl = host.evaluate("() => netplay.debug().lastRemote")
+            if hl: gezien_host.append(hl.get("p2", 0))
+        check("gast ziet zijn eigen telefoon op speler 2", 2 in gezien_gast, str(gezien_gast[:6]))
+        check("host krijgt die invoer via de lockstep", any(v & 2 for v in gezien_host), str(gezien_host[:6]))
+        # en de host-telefoon (mask 8, RIGHT) mag er niet door veranderd zijn
+        hc = host.evaluate("() => netplay.debug().joySources.ctrl[1]")
+        check("host-telefoon op speler 2 onveranderd", hc in (0, 8), "host ctrl[1]=%s" % hc)
+        api({"action": "ctrl-leave", "token": gjoin["ctrl_token"]})
+
     print("== 6c. onderbrekingen worden uitgelegd, niet stil bevroren ==")
     # Browsers bevriezen requestAnimationFrame in een tabblad dat niet zichtbaar
     # is; de lockstep laat de ander dan meewachten. Dat is functioneel goed, maar

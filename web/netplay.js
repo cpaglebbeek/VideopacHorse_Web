@@ -60,7 +60,7 @@ const netplay = (() => {
     mode: null,                 /* 'host' | 'guest' | null                        */
     phase: 'idle',              /* idle|signaling|assets|run|error                */
     hostToken: null, guestToken: null,
-    code: null, codeP1: null, codeP2: null,
+    code: null, codeP1: null, codeP2: null, codeGuest: null,
     expiresAt: 0,
     pc: null, ctl: null, inp: null,
     pollTimer: null, pingTimer: null,
@@ -105,6 +105,13 @@ const netplay = (() => {
     set('netCodeP2', st.codeP2);
     const card = $('netCodeCard');
     if (card) card.hidden = !st.code;
+    /* De gast ziet geen host-codes maar wél zijn eigen joystickcode: daarmee
+     * koppelt hij een telefoon aan ZIJN kant, die bij hem op speler 2 optelt. */
+    const gcard = $('netGuestCodeCard');
+    if (gcard) {
+      set('netCodeGuest', st.codeGuest);
+      gcard.hidden = !st.codeGuest;
+    }
   }
 
   function renderStats() {
@@ -811,7 +818,7 @@ const netplay = (() => {
       }).catch(() => { });
     }
     st.mode = null; st.hostToken = null; st.guestToken = null;
-    st.code = null; st.codeP1 = null; st.codeP2 = null;
+    st.code = null; st.codeP1 = null; st.codeP2 = null; st.codeGuest = null;
     st.local.clear(); st.remote.clear();
     setPhase('idle');
     setStatus('gestopt', '');
@@ -898,7 +905,9 @@ const netplay = (() => {
         const r = await apiCall('pair-join', { code });
         st.mode = 'guest';
         st.guestToken = r.guest_token;
+        st.codeGuest = r.ctrl_code_guest || null;
         st.expiresAt = r.expires_at | 0;
+        showCodes();
         setPhase('signaling');
         createPeer(true);
         /* Géén media-transceivers: er gaat hier geen beeld of geluid over de lijn.
@@ -926,6 +935,10 @@ const netplay = (() => {
         active: st.mode !== null,
         connected: st.pc ? st.pc.connectionState === 'connected' : false,
         hostToken: st.mode === 'host' ? st.hostToken : null,
+        /* Alleen voor ctrlPad: hiermee pollt de gast zijn eigen telefoons. Een
+         * token is een identiteit — de host krijgt dit veld nooit te zien en
+         * omgekeerd (BUG-003b). */
+        guestToken: st.mode === 'guest' ? st.guestToken : null,
       };
     },
 
@@ -937,7 +950,7 @@ const netplay = (() => {
 
     restore() {
       /* Verse pagina = verse sessie, net als op /videopac/. */
-      st.mode = null; st.code = null; st.codeP1 = null; st.codeP2 = null;
+      st.mode = null; st.code = null; st.codeP1 = null; st.codeP2 = null; st.codeGuest = null;
     },
 
     /* Inzicht in de lockstep zonder de closure open te breken. Gebruikt door de

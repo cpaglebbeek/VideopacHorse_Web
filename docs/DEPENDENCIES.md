@@ -26,7 +26,7 @@ Dat tweede is waar dit document voor bedoeld is; de eerste kolom is af te lezen 
 |---|---|---|
 | Joystick-mask = 5 bits, bit0=UP … bit4=FIRE | `app.js`, `netplay.js`, `api/index.php`, Android-app, `g7000.h` (`G7K_JOY_*`) | invoer komt op de verkeerde richting uit; geen foutmelding |
 | Code = 6 tekens uit `A-Z2-9` | `api/`, beide pagina's, Android-app | een geldige code wordt geweigerd door de invoervalidatie |
-| Slot 0 = speler 1, slot 1 = speler 2 | `api/`, `ctrlPad`, Android-app | telefoon bestuurt de verkeerde speler |
+| Slot 0 = speler 1, slot 1 = speler 2; `owner` = host of guest | `api/`, `ctrlPad`, Android-app | telefoon bestuurt de verkeerde speler, of de invoer komt aan de verkeerde kant binnen |
 | Lock-step versienummer | alle 6 repo's + `g7000.h` + de gedeployde wasm | netplay-handshake weigert; APK meldt een andere versie dan de release |
 
 ## Externe afhankelijkheden
@@ -36,3 +36,11 @@ Dat tweede is waar dit document voor bedoeld is; de eerste kolom is af te lezen 
 | `stun.l.google.com` / `stun1` | WebRTC in beide varianten | komt de P2P-verbinding niet tot stand. Er is **geen TURN**: achter symmetrische NAT werkt samen spelen niet. Gemeten faalgeval: 1 op 5 lokale testruns |
 | `archive.org/cors/…` | GAMES-lijst, BIOS-knop, netplay-assets | kan de gast de cartridge niet zelf ophalen; netplay valt terug op peer-to-peer met melding |
 | php8.3-fpm + SQLite op HC55 | pairing/signaling | geen nieuwe sessies; lopende WebRTC-verbindingen blijven werken (P2P) |
+
+**Let op bij een API-deploy:** php-fpm draait met `opcache.enable=On` en
+`opcache.revalidate_freq=2`. De eerste seconden ná een `rsync` van `api/index.php` kan dus
+nog de oude code draaien. Bij v0.6.0 gaf dat een verwarrende meting: de tests waren groen
+(nieuwe code, nieuwe kolommen) terwijl een `PRAGMA table_info` vlak na de deploy nog het
+oude schema toonde. Onschadelijk omdat de migratie idempotent is en alsnog draait, maar
+controleer een schemawijziging pas een paar seconden ná de deploy — of forceer met
+`systemctl reload php8.3-fpm`.

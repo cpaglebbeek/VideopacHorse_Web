@@ -41,6 +41,10 @@ print "== 4. gast kan joinen ONDANKS twee gekoppelde telefoons (kernwens) =="
 c=$(call "{\"action\":\"pair-join\",\"code\":\"$gast\"}")
 check "http 200 gast-join" 200 "$c"
 gtok=$(body | python3 -c 'import sys,json;print(json.load(sys.stdin)["guest_token"])')
+gastjoy=$(body | python3 -c 'import sys,json;print(json.load(sys.stdin).get("ctrl_code_guest",""))')
+check "gast krijgt een eigen joystickcode" 6 ${#gastjoy}
+check "die code is niet gelijk aan een host-code" 4 \
+  "$(print "$gast\n$p1\n$p2\n$gastjoy" | sort -u | wc -l | tr -d ' ')"
 
 print "== 5. rollen zijn niet uitwisselbaar =="
 c=$(call "{\"action\":\"pair-join\",\"code\":\"$p1\"}")
@@ -59,8 +63,29 @@ c=$(call "{\"action\":\"ctrl-poll\",\"token\":\"$host\"}")
 check "http 200 ctrl-poll" 200 "$c"
 masks=$(body | python3 -c 'import sys,json;d=json.load(sys.stdin);print(",".join("%d:%d" % (c["slot"], c["mask"]) for c in d["controllers"]))')
 check "maskers per slot" "0:5,1:16" "$masks"
+# Sinds v0.5.3 mag de gast WEL pollen — maar alleen zijn eigen kant. Hij heeft nog
+# geen telefoon gekoppeld, dus de lijst hoort leeg te zijn: dat is het bewijs dat hij
+# de telefoons van de host niet ziet.
 c=$(call "{\"action\":\"ctrl-poll\",\"token\":\"$gtok\"}")
-check "gast mag niet pollen" 401 "$c"
+check "gast mag pollen (eigen kant)" 200 "$c"
+check "gast ziet de host-telefoons NIET" "guest:0" \
+  "$(body | python3 -c 'import sys,json;d=json.load(sys.stdin);print(d["owner"]+":"+str(len(d["controllers"])))')"
+
+print "== 7b. gast koppelt zijn eigen telefoon (v0.5.3) =="
+c=$(call "{\"action\":\"ctrl-join\",\"code\":\"$gastjoy\"}")
+check "gastcode geeft slot 1 aan de gast-kant" 200 "$c"
+gj=$(body | python3 -c 'import sys,json;d=json.load(sys.stdin);print("%d/%s" % (d["slot"], d["owner"]))')
+check "slot en eigenaar" "1/guest" "$gj"
+gjtok=$(body | python3 -c 'import sys,json;print(json.load(sys.stdin)["ctrl_token"])')
+call "{\"action\":\"ctrl-input\",\"token\":\"$gjtok\",\"mask\":2}" >/dev/null
+c=$(call "{\"action\":\"ctrl-poll\",\"token\":\"$gtok\"}")
+check "gast ziet nu zijn eigen telefoon" "1:2" \
+  "$(body | python3 -c 'import sys,json;d=json.load(sys.stdin);c=d["controllers"];print("%d:%d" % (c[0]["slot"], c[0]["mask"]) if c else "leeg")')"
+c=$(call "{\"action\":\"ctrl-poll\",\"token\":\"$host\"}")
+check "host ziet nog steeds alleen zijn eigen twee" "0:5,1:16" \
+  "$(body | python3 -c 'import sys,json;d=json.load(sys.stdin);print(",".join("%d:%d" % (c["slot"], c["mask"]) for c in d["controllers"]))')"
+c=$(call "{\"action\":\"ctrl-join\",\"code\":\"$gastjoy\"}")
+check "tweede telefoon op de gast-plek geweigerd" 409 "$c"
 
 print "== 8. ctrl-leave geeft de plek vrij =="
 call "{\"action\":\"ctrl-leave\",\"token\":\"$tok1\"}" >/dev/null

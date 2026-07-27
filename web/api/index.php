@@ -14,8 +14,10 @@
  * gaf structureel drie verhalen over dezelfde bezetting (zie BUG-009). Nu bepáált
  * de code de rol — er valt niets meer toe te wijzen:
  *   - `code`          -> 🎭 gastcode: max één gast (WebRTC-peer, speler 2)
- *   - `ctrl_code_p1`  -> 🎮 joystickcode speler 1: max één telefoon
- *   - `ctrl_code_p2`  -> 🎮 joystickcode speler 2: max één telefoon
+ *   - `ctrl_code_p1`  -> 🎮 joystickcode speler 1 (host-kant): max één telefoon
+ *   - `ctrl_code_p2`  -> 🎮 joystickcode speler 2 (host-kant): max één telefoon
+ *   - `ctrl_code_guest` -> 🎮 joystickcode van de GAST (v0.5.3): max één telefoon,
+ *                        pas uitgeleverd bij pair-join want vóór die tijd is er geen gast
  * Gast en telefoon-P2 sturen allebei speler 2 aan; die twee worden in de client
  * ge-OR'd, precies zoals toetsenbord en gamepad dat al deden (pushJoy in app.js).
  * Er is dus GEEN exclusiviteit meer en geen kruisvalidatie tussen de endpoints.
@@ -31,7 +33,9 @@
  *                                 het slot volgt uit de code (p1 -> 0, p2 -> 1);
  *                                 409 als die plek al door een levende telefoon bezet is
  *   ctrl-input {token, mask}   -> {ok}; mask 0..31 (bit0 UP .. bit4 FIRE == G7K_JOY_*)
- *   ctrl-poll  {token=host}    -> {controllers:[{slot, mask, age_ms}]}; alleen de host
+ *   ctrl-poll  {token}         -> {controllers:[{slot, mask, age_ms}], owner}; host-token
+ *                                 geeft de telefoons aan de host-kant, gast-token die aan
+ *                                 de gast-kant (v0.5.3)
  *   ctrl-leave {token}         -> {ok}; slot vrijgeven
  *
  * Storage: SQLite op /var/lib/videopac/pairing.db (buiten webroot).
@@ -154,14 +158,32 @@ function db(): PDO {
     if (empty($cols['ctrl_code_p2'])) {
         $pdo->exec('ALTER TABLE sessions ADD COLUMN ctrl_code_p2 TEXT');
     }
+    /* v0.5.3: de gast mag zijn eigen telefoon koppelen. Zijn code wordt al bij
+     * pair-create gereserveerd (dan is uniciteit gegarandeerd) maar pas bij
+     * pair-join uitgeleverd — vóór die tijd is er niemand om hem aan te geven. */
+    if (empty($cols['ctrl_code_guest'])) {
+        $pdo->exec('ALTER TABLE sessions ADD COLUMN ctrl_code_guest TEXT');
+    }
+    $ccols = [];
+    foreach ($pdo->query("PRAGMA table_info(controllers)") as $c) {
+        $ccols[$c['name']] = true;
+    }
+    if (empty($ccols['owner'])) {
+        $pdo->exec("ALTER TABLE controllers ADD COLUMN owner TEXT NOT NULL DEFAULT 'host'");
+    }
     $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cp1 ON sessions(ctrl_code_p1)');
     $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cp2 ON sessions(ctrl_code_p2)');
     /* Eén telefoon per plek — afgedwongen door de database, niet alleen door de
      * controle in ctrl-join. Kan bij een oude db met dubbele rijen falen; dat mag
      * nooit een 500 op elk verzoek geven, dus de index is hier best-effort. */
     try {
-        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_controllers_slot
-                    ON controllers(session_token, slot)');
+        /* Eén telefoon per plek PER EIGENAAR. Slot 1 (speler 2) kan sinds v0.5.3
+         * twee rijen hebben: één telefoon aan de host-kant en één aan de gast-kant.
+         * Dat is geen dubbele bezetting maar precies het OR-model — beide dragen bij
+         * aan dezelfde speler, net als toetsenbord en gamepad dat al deden. */
+        $pdo->exec('DROP INDEX IF EXISTS idx_controllers_slot');
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_controllers_slot_owner
+                    ON controllers(session_token, slot, owner)');
     } catch (PDOException $e) {
         error_log('[videopac-api] slot-index niet aangemaakt: ' . substr($e->getMessage(), 0, 120));
     }
@@ -279,7 +301,8 @@ function newCode(array $exclude = []): string {
          * bezet. En niet alleen `code`: een joystickcode die toevallig gelijk is
          * aan een gastcode van een andere sessie zou de rollen laten kruisen. */
         $st = db()->prepare('SELECT 1 FROM sessions
-                             WHERE code=:c OR ctrl_code_p1=:c OR ctrl_code_p2=:c');
+                             WHERE code=:c OR ctrl_code_p1=:c OR ctrl_code_p2=:c
+                                OR ctrl_code_guest=:c');
         $st->execute([':c' => $code]);
         if (!fetchVal($st)) {
             return $code;
@@ -402,15 +425,16 @@ case 'pair-create': {
     $code = newCode();
     $codeP1 = newCode([$code]);
     $codeP2 = newCode([$code, $codeP1]);
+    $codeGuest = newCode([$code, $codeP1, $codeP2]);
     $hostToken = newToken();
     $now = time();
     $expiresAt = $now + (TTL_SESSION_HOURS * 3600);
 
-    withRetry(function () use ($hostToken, $code, $codeP1, $codeP2, $now, $expiresAt) {
+    withRetry(function () use ($hostToken, $code, $codeP1, $codeP2, $codeGuest, $now, $expiresAt) {
         db()->prepare('INSERT INTO sessions(token, code, ctrl_code_p1, ctrl_code_p2,
-                                            host_token, created_at, expires_at)
-                       VALUES(?,?,?,?,?,?,?)')
-            ->execute([$hostToken, $code, $codeP1, $codeP2, $hostToken, $now, $expiresAt]);
+                                            ctrl_code_guest, host_token, created_at, expires_at)
+                       VALUES(?,?,?,?,?,?,?,?)')
+            ->execute([$hostToken, $code, $codeP1, $codeP2, $codeGuest, $hostToken, $now, $expiresAt]);
         return true;
     });
 
@@ -447,7 +471,8 @@ case 'pair-join': {
      * fail() mag hier niet: dat doet exit() en zou de transactie open laten. */
     $guestToken = newToken();
     $res = inImmediateTransaction(function () use ($guestToken, $code) {
-            $st = db()->prepare('SELECT token, guest_token, expires_at FROM sessions WHERE code=? AND expires_at>?');
+            $st = db()->prepare('SELECT token, guest_token, ctrl_code_guest, expires_at
+                                 FROM sessions WHERE code=? AND expires_at>?');
             $st->execute([$code, time()]);
             $sess = fetchRow($st);
             if (!$sess) {
@@ -463,7 +488,8 @@ case 'pair-join': {
             if ($st->rowCount() < 1) {
                 return ['err' => ['deze sessie is al bezet', 400]];
             }
-            return ['expires_at' => (int)$sess['expires_at']];
+            return ['expires_at' => (int)$sess['expires_at'],
+                    'ctrl_code_guest' => $sess['ctrl_code_guest']];
     });
 
     if (isset($res['err'])) {
@@ -473,6 +499,9 @@ case 'pair-join': {
     ok([
         'guest_token' => $guestToken,
         'expires_at' => $res['expires_at'],
+        /* De gast krijgt zijn eigen joystickcode pas hier: vóór het joinen bestaat
+         * hij niet en zou de code nergens naartoe kunnen. */
+        'ctrl_code_guest' => $res['ctrl_code_guest'],
     ]);
 }
 
@@ -601,7 +630,8 @@ case 'ctrl-join': {
      * gevormde code eerst BEGIN IMMEDIATE en nam zo het enige schrijfslot van de
      * gedeelde SQLite-db, om vervolgens 400 te geven. */
     $st = db()->prepare('SELECT 1 FROM sessions
-                         WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c) AND expires_at>:now');
+                         WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c OR ctrl_code_guest=:c)
+                           AND expires_at>:now');
     $st->execute([':c' => $code, ':now' => time()]);
     if (!fetchVal($st)) {
         fail('code verlopen of onbekend');
@@ -616,16 +646,30 @@ case 'ctrl-join': {
      * (zelfde reden als BUG-007). Fouten worden als waarde teruggegeven, niet
      * als fail(): fail() doet exit en zou de transactie open laten staan. */
     $res = inImmediateTransaction(function () use ($code, $ctrlToken, $nowMs) {
-            $st = db()->prepare('SELECT token, ctrl_code_p1, ctrl_code_p2, expires_at
+            $st = db()->prepare('SELECT token, ctrl_code_p1, ctrl_code_p2, ctrl_code_guest,
+                                        guest_token, expires_at
                                  FROM sessions
-                                 WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c) AND expires_at>:now');
+                                 WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c OR ctrl_code_guest=:c)
+                                   AND expires_at>:now');
             $st->execute([':c' => $code, ':now' => time()]);
             $sess = fetchRow($st);
             if (!$sess) {
                 return ['err' => ['code verlopen of onbekend', 400]];
             }
 
-            $slot = ($sess['ctrl_code_p1'] === $code) ? 0 : 1;
+            /* De code bepaalt zowel de plek als de EIGENAAR. De gastcode geeft
+              * slot 1 (de gast ís speler 2) maar aan de gast-kant, zodat hij niet
+              * botst met een telefoon die de host op speler 2 heeft hangen. */
+            if ($sess['ctrl_code_guest'] === $code) {
+                $slot = 1;
+                $owner = 'guest';
+                if (empty($sess['guest_token'])) {
+                    return ['err' => ['er is nog geen gast in deze sessie', 409]];
+                }
+            } else {
+                $slot = ($sess['ctrl_code_p1'] === $code) ? 0 : 1;
+                $owner = 'host';
+            }
 
             /* Zit er al een telefoon op deze plek? Dan alleen overnemen als die
              * STIL is (geen ctrl-input binnen de TTL). Zonder die uitzondering
@@ -633,8 +677,8 @@ case 'ctrl-join': {
              * 60 s wachten op de GC voordat hij weer kan koppelen — precies op
              * het moment dat hij snel terug wil in het spel. */
             $q = db()->prepare('SELECT token, updated_at FROM controllers
-                                WHERE session_token=? AND slot=?');
-            $q->execute([$sess['token'], $slot]);
+                                WHERE session_token=? AND slot=? AND owner=?');
+            $q->execute([$sess['token'], $slot, $owner]);
             $cur = fetchRow($q);
             if ($cur) {
                 if ($nowMs - (int)$cur['updated_at'] < CTRL_TTL_SECONDS * 1000) {
@@ -643,9 +687,10 @@ case 'ctrl-join': {
                 db()->prepare('DELETE FROM controllers WHERE token=?')->execute([$cur['token']]);
             }
 
-            db()->prepare('INSERT INTO controllers(token, session_token, slot, mask, updated_at) VALUES(?,?,?,0,?)')
-                ->execute([$ctrlToken, $sess['token'], $slot, $nowMs]);
-            return ['slot' => $slot, 'expires_at' => (int)$sess['expires_at']];
+            db()->prepare('INSERT INTO controllers(token, session_token, slot, mask, updated_at, owner)
+                           VALUES(?,?,?,0,?,?)')
+                ->execute([$ctrlToken, $sess['token'], $slot, $nowMs, $owner]);
+            return ['slot' => $slot, 'owner' => $owner, 'expires_at' => (int)$sess['expires_at']];
     });
 
     if (isset($res['err'])) {
@@ -655,6 +700,7 @@ case 'ctrl-join': {
     ok([
         'ctrl_token' => $ctrlToken,
         'slot' => $res['slot'],
+        'owner' => $res['owner'],
         'expires_at' => $res['expires_at'],
     ]);
 }
@@ -691,20 +737,24 @@ case 'ctrl-input': {
 }
 
 case 'ctrl-poll': {
-    /* Alleen de HOST mag pollen: sessions.token IS het host-token; een gast-
-     * of controller-token matcht deze query niet. Volledig read-only, dus 10 Hz
+    /* Host én gast mogen pollen, elk alleen de telefoons aan hun EIGEN kant
+     * (v0.5.3). Een host-token levert owner='host', een gast-token owner='guest';
+     * een controller-token matcht geen van beide. Volledig read-only, dus 10 Hz
      * pollen levert geen schrijfdruk op. */
     $token = requireTokenShape($in['token'] ?? '');
-    $st = db()->prepare('SELECT token FROM sessions WHERE token=? AND expires_at>?');
-    $st->execute([$token, time()]);
-    if (!fetchVal($st)) {
-        fail('alleen de host mag pollen', 401);
+    $st = db()->prepare('SELECT token, host_token, guest_token FROM sessions
+                         WHERE (token=? OR guest_token=?) AND expires_at>?');
+    $st->execute([$token, $token, time()]);
+    $sess = fetchRow($st);
+    if (!$sess) {
+        fail('alleen de host of de gast mag pollen', 401);
     }
+    $owner = hash_equals((string)$sess['host_token'], $token) ? 'host' : 'guest';
 
     $nowMs = nowMs();
     $q = db()->prepare('SELECT slot, mask, updated_at FROM controllers
-                        WHERE session_token=? AND slot>=0 AND slot<? ORDER BY slot');
-    $q->execute([$token, CTRL_SLOTS]);
+                        WHERE session_token=? AND owner=? AND slot>=0 AND slot<? ORDER BY slot');
+    $q->execute([$sess['token'], $owner, CTRL_SLOTS]);
 
     $controllers = [];
     foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $row) {
@@ -715,7 +765,7 @@ case 'ctrl-poll': {
         ];
     }
 
-    ok(['controllers' => $controllers]);
+    ok(['controllers' => $controllers, 'owner' => $owner]);
 }
 
 case 'ctrl-leave': {
