@@ -131,6 +131,7 @@ const S = {
   frames: 0, lastFpsT: 0,
   joy: [0, 0],                       /* gecombineerd mask zoals aan de core doorgegeven */
   /* per bron; pushJoy OR't ze — joyCtrl = telefoon-joystick via de API (ctrl-poll) */
+  biosSource: null, romTitle: null,
   joyKb: [0, 0], joyGp: [0, 0], joyPeer: [0, 0], joyCtrl: [0, 0],
 };
 
@@ -223,16 +224,18 @@ function pushBytes(bytes) {
 }
 
 async function restoreFiles() {
-  const bios = await idbGet('bios'), rom = await idbGet('rom');
-  if (bios) applyBios(new Uint8Array(bios), false);
-  if (rom) applyRom(new Uint8Array(rom), false);
+  /* Bewuste keuze (gebruikerswens 27-07): een herlaadbeurt geeft een VERSE
+   * machine — geen BIOS, geen cartridge, geen gekozen spel. De ROM-cache in
+   * IndexedDB blijft wel staan zodat opnieuw laden uit de bibliotheek direct
+   * (en offline) werkt; hij wordt alleen niet meer automatisch actief. */
+  GAMES.loadedCrc = null;
 }
 function applyBios(bytes, persist) {
   const ptr = pushBytes(bytes);
   const rc = S.api.loadBios(S.sys, ptr, bytes.length);
   S.mod._free(ptr);
   S.bios = rc === 0 ? bytes : null;
-  setBadge('biosBadge', rc === 0, 'geladen (' + bytes.length + ' B)',
+  setBadge('biosBadge', rc === 0, 'geladen — ' + (S.biosSource || 'bestand') + ' (' + bytes.length + ' B)',
     bytes.length !== 1024 ? 'moet exact 1024 bytes zijn' : 'laden mislukt');
   if (rc === 0 && persist) idbPut('bios', bytes.buffer.slice(0));
   updateButtons();
@@ -242,7 +245,9 @@ function applyRom(bytes, persist) {
   const rc = S.api.loadCart(S.sys, ptr, bytes.length);
   S.mod._free(ptr);
   S.rom = rc === 0 ? bytes : null;
-  setBadge('romBadge', rc === 0, 'geladen (' + (bytes.length / 1024) + ' KB)', 'ongeldige ROM-grootte');
+  setBadge('romBadge', rc === 0,
+    'geladen — ' + (S.romTitle || 'eigen bestand') + ' (' + (bytes.length / 1024) + ' KB)',
+    'ongeldige ROM-grootte');
   if (rc === 0 && persist) idbPut('rom', bytes.buffer.slice(0));
   updateButtons();
 }
@@ -585,11 +590,11 @@ function sendChar(ch, down) {
 function bindUi() {
   $('fileBios').addEventListener('change', async ev => {
     const f = ev.target.files[0];
-    if (f) applyBios(new Uint8Array(await f.arrayBuffer()), true);
+    if (f) { S.biosSource = f.name; applyBios(new Uint8Array(await f.arrayBuffer()), true); }
   });
   $('fileRom').addEventListener('change', async ev => {
     const f = ev.target.files[0];
-    if (f) applyRom(new Uint8Array(await f.arrayBuffer()), true);
+    if (f) { S.romTitle = f.name; applyRom(new Uint8Array(await f.arrayBuffer()), true); }
   });
   $('btnStart').onclick = () => {
     audioStart();
@@ -652,6 +657,7 @@ async function gamesLoad(entry, rowEl) {
         throw new Error('CRC-mismatch (' + crc + ' ≠ ' + entry.crc32 + ')');
       await idbPut('game:' + entry.crc32, bytes.buffer.slice(0));
     }
+    S.romTitle = (entry.nr != null ? 'nr ' + entry.nr + ' ' : '') + entry.title;
     applyRom(bytes, true);           /* wordt ook de actieve cartridge      */
     GAMES.loadedCrc = entry.crc32;
     status.className = 'badge ok'; status.textContent = '✓ geladen';
@@ -711,6 +717,7 @@ async function gamesInit() {
       if (bytes.length !== b.size) throw new Error('grootte ' + bytes.length + ' ≠ ' + b.size);
       if (b.crc32 && crc32(bytes) !== b.crc32.toLowerCase())
         throw new Error('CRC-mismatch');
+      S.biosSource = 'archive.org';
       applyBios(bytes, true);
       st.textContent = '✓ BIOS geladen en lokaal opgeslagen';
     } catch (e) {
