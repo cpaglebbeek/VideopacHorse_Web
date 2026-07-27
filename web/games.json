@@ -17,6 +17,13 @@
   "md5": "562d5ebf9e030a40d6fabfc2f33139fd",
   "url": "https://archive.org/cors/bios_batocera/BatoceraV39Bios/bios/o2rom.bin"
  },
+ "bios_g7400": {
+  "file": "g7400.bin",
+  "size": 1024,
+  "md5": "c500ff71236068e0dc0d0603d265ae76",
+  "crc32": "e20a9f41",
+  "url": "https://raw.githubusercontent.com/Abdess/retrobios/13c561888d4d0cc2f8e00e53fe91405cc09ab7f1/bios/Philips/Videopac%2B/g7400.bin"
+ },
  "games": [
   {
    "nr": 1,
