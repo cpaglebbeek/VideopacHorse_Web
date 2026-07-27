@@ -4,13 +4,14 @@
 
 | Component | Bestand | Verantwoordelijkheid |
 |---|---|---|
-| Pagina/UI | `web/index.html` | layout, file-pickers (BIOS/ROM), status, hulp |
+| Pagina/UI | `web/index.html` | **netplay-pagina** — sinds v0.5.1 de gewone versie op `/videopac/`: layout, file-pickers (BIOS/ROM), status, hulp |
 | App-glue | `web/app.js` | WASM-module laden, frame-loop (requestAnimationFrame), canvas-blit, WebAudio-pump, input-mapping, IndexedDB-opslag |
 | Telefoon-joystick (internet) | `web/app.js` (module `ctrlPad`) | Host pollt `ctrl-poll` zolang hij een pairplay-sessie heeft; slot 0/1 → `S.joyCtrl[0/1]`; dubbele failsafe (`age_ms > 3000` én watchdog op de poll-route zelf) ⇒ mask 0; statusregel `#ctrlStatus` |
 | Engine | `web/g7000.js` + `web/g7000.wasm` | build-artefact uit VideopacHorse_Core (`make wasm`) |
 | Stijl | `web/style.css` | gedeeld door beide pagina's; CSS-variabelen zijn het configuratiepaneel (DESIGN_TOKENS.md) |
-| Netplay-pagina | `web/2/index.html` | tweede variant op `/videopac/2/`; hergebruikt `../app.js` en `../g7000.*` via `window.VPH_BASE`/`VPH_API` |
-| Netplay-module | `web/2/netplay.js` | lockstep-emulatie aan beide kanten i.p.v. videostream; levert dezelfde vorm als `pairPlay` zodat app.js ongewijzigd blijft |
+| Netplay-module | `web/netplay.js` | lockstep-emulatie aan beide kanten i.p.v. videostream; levert dezelfde vorm als `pairPlay` zodat app.js ongewijzigd blijft |
+| Archief: streamversie | `web/stream/{index.html,pairplay.js}` | de oude 🎭 Samen spelen-variant op `/videopac/stream/`; hergebruikt `../app.js` en `../g7000.*` via `window.VPH_BASE`/`VPH_API` |
+| Doorverwijzing | `web/2/index.html` | `/videopac/2/` → `/videopac/`; netplay is verhuisd, maar die URL staat in docs en bladwijzers |
 | Build | `build.sh` | core bouwen + artefacten kopiëren + cache-busters van BEIDE pagina's |
 | Tests | `tests/run.sh` | wegwerpserver + API-suite + twee browsersuites (`tests/README.md`) |
 
@@ -46,11 +47,12 @@ Migratie: sessies uit v0.4.x houden lege joystickcodes en verlopen vanzelf; hun
 telefoons kunnen niet opnieuw koppelen. De DB-migratie is idempotent en draait bij
 het eerste verzoek na de deploy (`PRAGMA table_info` + `ALTER TABLE`).
 
-## Netplay — /videopac/2/ (v0.5.0)
+## Netplay — /videopac/ (v0.5.0, hoofdversie sinds v0.5.1)
 
-Tweede variant naast 🎭 Samen spelen, met een fundamenteel ander model:
+Samen spelen gaat sinds v0.5.1 standaard via netplay; de streamversie is gearchiveerd
+op `/videopac/stream/` en krijgt geen nieuwe functies meer. Het verschil:
 
-| | `/videopac/` | `/videopac/2/` |
+| | `/videopac/stream/` (archief) | `/videopac/` (nu) |
 |---|---|---|
 | Wie emuleert | alleen de host | **beide kanten** |
 | Over de lijn | H.264-videostream + audio (~1-3 Mbit/s) | invoer per frame (~50 byte/s) |

@@ -5,11 +5,11 @@ LIVE-doel: **https://horsecloud55.ddns.net/videopac/**
 
 - Engine: zusterrepo [VideopacHorse_Core](https://github.com/cpaglebbeek/VideopacHorse_Core) — `make wasm` levert `g7000.{js,wasm}`
 - UI: statische single-page app (`web/`) — canvas + WebAudio + toetsenbord/gamepad
-- Twee varianten die dezelfde `app.js` en dezelfde wasm delen:
-  - `/videopac/` — 🎭 Samen spelen: de host streamt zijn scherm naar de gast
-  - `/videopac/2/` — netplay: **beide kanten emuleren zelf**, alleen invoer gaat over de
-    lijn (~50 byte/s). Scherper beeld, eigen geluid; hapert de lijn, dan staat het beeld
-    even stil in plaats van te blokken.
+- Samen spelen gaat via **netplay**: beide kanten emuleren zelf, alleen invoer gaat over
+  de lijn (~50 byte/s). Scherper beeld, eigen geluid; hapert de lijn, dan staat het beeld
+  even stil in plaats van te blokken.
+- De oudere variant waarbij de host zijn scherm *streamde*, staat gearchiveerd op
+  `/videopac/stream/` — zelfde `app.js`, zelfde wasm, geen nieuwe functies meer.
 - Eén sessie geeft **drie codes**: een gastcode en een joystickcode per speler. De rol zit
   in de code; bronnen op dezelfde speler tellen bij elkaar op.
 - **BIOS en game-ROMs upload je zelf** via de file-picker; ze blijven in je browser

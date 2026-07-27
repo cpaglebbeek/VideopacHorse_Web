@@ -1,8 +1,8 @@
 /*
- * netplay.js — VideopacHorse netplay (/videopac/2/), v0.5.0
+ * netplay.js — VideopacHorse netplay (/videopac/), v0.5.1
  *
- * Het verschil met 🎭 Samen spelen op /videopac/: daar draait ALLEEN de host de
- * emulator en gaat er een videostream naar de gast. Hier draaien beide kanten
+ * Het verschil met de gearchiveerde streamversie (/videopac/stream/): daar draait
+ * ALLEEN de host de emulator en gaat er een videostream naar de gast. Hier draaien beide kanten
  * dezelfde emulatie en gaat er alleen invoer over de lijn (~50 byte/s). De gast
  * ziet dus geen gecomprimeerd videobeeld maar zijn eigen, scherpe framebuffer,
  * en hoort zijn eigen geluid.
@@ -562,8 +562,13 @@ const netplay = (() => {
     if (rc !== 0) { setStatus('bijtrekken mislukt', 'err'); return; }
     st.frame = frame;
     st.acc = 0;
-    /* Invoer die al gepland én verstuurd is blijft staan: de host rekent met
-     * precies diezelfde invoer. Alleen wat vóór het herstelpunt ligt kan weg. */
+    /* De planning moet mee verhuizen. Sprongen we vooruit (we liepen achter), dan
+     * staat `planned` nog op een frame dat allang gepasseerd is; zonder deze regel
+     * plant planAhead() alleen die oude reeks bij en krijgt de host nooit invoer
+     * voor het frame waar hij op wacht — dan blijft hij eeuwig staan wachten.
+     * Achteruit springen doen we niet: die invoer is al verstuurd en de host
+     * rekent er al mee. */
+    if (st.planned < st.frame - 1) st.planned = st.frame - 1;
     prune();
     st.resyncs++;
     setStatus('weer gelijk', 'ok');
@@ -745,6 +750,14 @@ const netplay = (() => {
         if (!st.peerAway && now - st.stallSince > 1500) {
           setStatus('wachten op je medespeler…', 'warn');
         }
+        /* GEEN savestate sturen omdat het wachten lang duurt — geprobeerd en
+         * gemeten (27-07): wie stalt is juist de kant die ACHTERBLIJFT, want hij
+         * kan niet verder zonder de invoer van de ander. Zijn savestate zet de
+         * vooruitlopende medespeler dus terug, en bij het opstarten (de host
+         * wacht dan normaal even op een ladende gast) gaat dat in herhaling:
+         * gemeten host op frame 15 met 8 resyncs in 20 s. Inhalen gaat vanzelf en
+         * kost hooguit `delay` frames, want de wachtende kant is zelf ook gestopt.
+         * Savestates blijven voor waar ze voor bedoeld zijn: een echte desync. */
         break;
       }
       if (st.stalling && !st.peerAway && now - st.stallSince > 1500) {

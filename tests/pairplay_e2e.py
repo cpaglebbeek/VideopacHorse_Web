@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-e2e-test /videopac/ v0.5.0 — drie codes en de OR-merge op speler 2.
+e2e-test /videopac/stream/ (gearchiveerd) — drie codes en de OR-merge op speler 2.
 
 Kernwens van de opdracht: gast (WebRTC) en telefoon (joystickcode P2) sluiten
 elkaar niet meer uit maar tellen op. Dat toetsen we aan de kant waar het telt —
@@ -33,7 +33,7 @@ with sync_playwright() as pw:
     errs = []
     for pg, who in ((host, "host"), (guest, "gast")):
         pg.on("pageerror", lambda e, w=who: errs.append(w + ": " + str(e)))
-        pg.goto(BASE + "/", wait_until="networkidle")
+        pg.goto(BASE + "/stream/", wait_until="networkidle")
         pg.wait_for_function("() => typeof S !== 'undefined' && !!S.api")
 
     print("== 1. host start een sessie en krijgt drie codes ==")

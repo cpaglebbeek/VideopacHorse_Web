@@ -7,12 +7,13 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.5.0';
+const BUILD_V = '0.5.1';
 
-/* Basispad-hooks. De netplay-variant op /videopac/2/ draait DEZE app.js één map
- * dieper (geen kopie — één bestand, één gedrag). Zonder deze twee variabelen zou
- * hij daar g7000.wasm, games.json en de API onder /2/ gaan zoeken. De pagina zet
- * ze vóór het laden van dit script; leeg = de gewone /videopac/-plaatsing. */
+/* Basispad-hooks. Sinds v0.5.1 is netplay de gewone versie op /videopac/ en draait
+ * de gearchiveerde streamversie DEZE app.js één map dieper (/videopac/stream/) —
+ * geen kopie, één bestand, één gedrag. Zonder deze twee variabelen zou die pagina
+ * g7000.wasm, games.json en de API onder /stream/ gaan zoeken. Ze worden gezet
+ * vóór het laden van dit script; leeg = de plaatsing in de hoofdmap. */
 const VPH_BASE = (typeof window !== 'undefined' && window.VPH_BASE) || '';
 const VPH_API = (typeof window !== 'undefined' && window.VPH_API) || 'api/';
 

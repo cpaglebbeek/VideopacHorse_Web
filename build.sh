@@ -7,9 +7,11 @@ ver=$(python3 -c "import json;print(json.load(open('$(dirname "$0")/version.json
 make -C "$core_dir" wasm
 cp "$core_dir/build/wasm/g7000.js" "$core_dir/build/wasm/g7000.wasm" "$web_dir/"
 # cache-busters gelijktrekken met version.json (proxy's cachen wasm immutable).
-# Beide pagina's meenemen: /videopac/ (stream) én /videopac/2/ (netplay). Vergeet je
-# de tweede, dan draait die met een oude wasm terwijl de eerste vernieuwt — en juist
-# dáár moeten beide kanten gegarandeerd dezelfde core hebben.
-sed -i '' -E "s/\?v=[0-9.]+/?v=$ver/g" "$web_dir/index.html" "$web_dir/2/index.html"
+# Alle drie de pagina's meenemen: /videopac/ (netplay, de gewone versie),
+# /videopac/stream/ (gearchiveerd) en /videopac/2/ (doorverwijzing). Vergeet je er
+# een, dan draait die met een oude wasm terwijl de andere vernieuwt — en juist bij
+# netplay moeten beide kanten gegarandeerd dezelfde core hebben.
+sed -i '' -E "s/\?v=[0-9.]+/?v=$ver/g" \
+  "$web_dir/index.html" "$web_dir/stream/index.html" "$web_dir/2/index.html"
 sed -i '' -E "s/const BUILD_V = '[0-9.]+'/const BUILD_V = '$ver'/" "$web_dir/app.js"
 echo "OK: web/g7000.{js,wasm} bijgewerkt, cache-buster ?v=$ver ($(date +%F))"

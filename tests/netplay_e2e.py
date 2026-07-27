@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-e2e-test /videopac/2/ — twee echte browsers spelen samen via WebRTC-netplay.
+e2e-test /videopac/ — twee echte browsers spelen samen via WebRTC-netplay.
 
 Bewijst wat de unit-gate niet kan bewijzen: dat de hele keten werkt (pairing-API,
 DataChannels, assets ophalen, lockstep) en dat beide kanten daarna hetzelfde beeld
@@ -54,8 +54,8 @@ with sync_playwright() as pw:
     guest.on("console", lambda m: errs["guest"].append("console:" + m.text) if m.type == "error" else None)
 
     print("== 1. pagina laadt en core start ==")
-    host.goto(BASE + "/2/", wait_until="networkidle")
-    guest.goto(BASE + "/2/", wait_until="networkidle")
+    host.goto(BASE + "/", wait_until="networkidle")
+    guest.goto(BASE + "/", wait_until="networkidle")
     host.wait_for_function("() => typeof S !== 'undefined' && !!S.api", timeout=15000)
     guest.wait_for_function("() => typeof S !== 'undefined' && !!S.api", timeout=15000)
     ver = host.evaluate("() => S.api.version()")
@@ -64,7 +64,7 @@ with sync_playwright() as pw:
     for who in ("host", "guest"):
         if errs[who]:
             print("   %s-fouten bij laden: %s" % (who, errs[who][:3]))
-    check("app.js gedeeld vanaf ../", host.evaluate("() => VPH_BASE === '../' && VPH_API === '../api/'"))
+    check("hoofdpagina gebruikt de eigen map", host.evaluate("() => VPH_BASE === '' && VPH_API === 'api/'"))
 
     print("== 2. host laadt BIOS + cartridge en start een sessie ==")
     load_local_files(host, BIOS, CART)
@@ -198,12 +198,25 @@ with sync_playwright() as pw:
     guest.evaluate("() => { S.running = false; }")          # emulatielus van de gast stil
     time.sleep(2.5)
     check("host meldt het wachten", "wachten" in status(host), status(host))
+
+    # Herstel meten in plaats van er een vaste pauze voor nemen: gemeten duurt het
+    # 0,2-0,3 s (de wachtende kant is zelf ook gestopt, dus er is maar `delay`
+    # frames in te halen). Een ruime bovengrens houdt de test eerlijk zonder hem
+    # afhankelijk te maken van de toevallige snelheid van de testmachine.
     guest.evaluate("() => { S.running = true; requestAnimationFrame(frame); }")
-    time.sleep(2.5)
+    t_rec = time.time()
+    recovered = None
+    while time.time() - t_rec < 15:
+        if "wachten" not in status(host):
+            recovered = time.time() - t_rec
+            break
+        time.sleep(0.1)
     f_after = host.evaluate("() => netplay.debug()")
     check("loopt weer door zonder uit de pas te raken",
-          "wachten" not in status(host) and f_after["desyncs"] == 0,
-          "%s / desync=%d" % (status(host), f_after["desyncs"]))
+          recovered is not None and f_after["desyncs"] == 0,
+          "hersteld in %s, desync=%d" % (
+              ("%.1f s" % recovered) if recovered is not None else "niet binnen 15 s",
+              f_after["desyncs"]))
 
     print("== 7. geen JS-fouten ==")
     check("host zonder fouten", not errs["host"], "; ".join(errs["host"][:3]))

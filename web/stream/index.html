@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="nl" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VideopacHorse (gearchiveerd) — streamversie</title>
+<link rel="stylesheet" href="../style.css?v=0.5.1">
+<script>
+/* Gearchiveerde streamversie. Draait de gedeelde emulator-glue één map hoger, net
+ * zoals de netplay-pagina dat vóór v0.5.1 deed vanuit /videopac/2/. */
+window.VPH_BASE = '../';
+window.VPH_API = '../api/';
+</script>
+</head>
+<body>
+<div class="wrap">
+  <h1>Videopac<span>Horse</span> · streamversie <span style="font-size:.5em;vertical-align:middle" class="badge">gearchiveerd</span></h1>
+  <p class="sub">Deze variant streamt het scherm van de host naar de gast. Ze is vervangen door
+  <a href="../">netplay op /videopac/</a>, waar beide kanten dezelfde emulatie draaien — scherper beeld,
+  eigen geluid en veel minder verkeer. Deze pagina blijft staan om te kunnen vergelijken.
+  <span id="verBadge" class="badge">core laden…</span></p>
+
+  <div class="card">
+    <canvas id="screen" width="320" height="240"></canvas>
+    <div class="row" style="justify-content:center; margin-top:12px">
+      <button id="btnStart" class="primary" disabled>▶ Start</button>
+      <button id="btnPause" disabled>⏸ Pauze</button>
+      <button id="btnReset" disabled>↺ Reset</button>
+      <button id="btnColdReset" disabled>⏻ Power-cycle</button>
+      <label><input type="checkbox" id="chkNtsc"> NTSC (60 Hz)</label>
+      <span id="fps" class="help"></span>
+    </div>
+    <div class="kbd" id="consoleKbd" hidden></div>
+    <div class="row" style="justify-content:center; margin-top:8px">
+      <button id="btnKbd">⌨ Console-toetsenbord</button>
+      <button id="btnFullscreen">⛶ Volledig scherm</button>
+    </div>
+    <!-- telefoon-joysticks: elk gekoppeld met de joystickcode van hun eigen speler (ctrl-poll) -->
+    <div id="ctrlStatus" class="blestatus" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="filerow">
+      <label>BIOS (1 KB)</label>
+      <input type="file" id="fileBios">
+      <span id="biosBadge" class="badge err">ontbreekt</span>
+    </div>
+    <div class="filerow">
+      <label>Cartridge</label>
+      <input type="file" id="fileRom">
+      <span id="romBadge" class="badge err">ontbreekt</span>
+    </div>
+    <div class="row">
+      <button id="btnBiosUrl">⬇ BIOS laden van archive.org</button>
+      <span id="biosUrlStatus" class="help"></span>
+    </div>
+    <p class="help">Je BIOS (<code>o2rom.bin</code>, 1024 bytes — dump van je eigen console) en game-ROMs
+    blijven <strong>in je browser</strong> (IndexedDB). Er wordt niets geüpload; deze site heeft geen backend.
+    Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
+    console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.
+    <strong>Telefoon als joystick:</strong> start hieronder een sessie, open de app
+    <em>VideopacHorse Joystick</em> op je Android-telefoon en tik de <strong>joystickcode</strong> over van de speler die je wilt zijn.
+    Geen Bluetooth, geen koppelen in Android — alleen die code (één telefoon per speler,
+    werkt in elke browser).</p>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>🎭 Samen spelen</strong>
+      <span id="pairplayStatus" class="badge"></span>
+    </div>
+    <div id="pairplayCodeCard" hidden>
+      <div class="codegrid">
+        <div class="codebox">
+          <span class="role">🎭 Gastcode</span>
+          <span class="value" id="pairplayCode">------</span>
+          <span class="hint">voor je medespeler op afstand — hij wordt speler 2</span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 1</span>
+          <span class="value" id="pairplayCodeP1">------</span>
+          <span class="hint">voor één telefoon met de app <em>VideopacHorse Joystick</em></span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 2</span>
+          <span class="value" id="pairplayCodeP2">------</span>
+          <span class="hint">voor één telefoon; werkt samen met de gast op speler 2</span>
+        </div>
+      </div>
+      <p class="help">Elke code hoort bij precies één plek — je kunt ze niet omwisselen.
+      Ze blijven geldig zolang de sessie loopt; stop je de sessie, dan vervallen ze alle drie.</p>
+    </div>
+    <div class="row">
+      <button id="pairplayBtnStart" class="primary">🎮 Start sessie (host)</button>
+      <span style="margin: 0 8px;">OF</span>
+      <input type="text" id="pairplayCodeInput" placeholder="6-tekens code…" maxlength="6" style="font: inherit; background: var(--kbd-bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px; width: 120px;">
+      <button id="pairplayBtnJoin" class="primary">▶ Meedoen (gast)</button>
+      <button id="pairplayBtnStop" disabled>⏹ Stop sessie</button>
+    </div>
+    <video id="pairplayRemoteVideo" style="display:none; width:100%; max-width:100%; margin-top:12px; border-radius:6px; border:1px solid var(--panel-border);"></video>
+    <p class="help">Start een sessie als host (je draait de emulator en streamt het scherm) of join als gast
+    (je ziet de stream van de host en stuurt je input als speler 2). De WebRTC-verbinding is P2P over
+    LAN of internet; de server ziet alleen handshake-metadata. Audio: gast hoort de host-PC-output.
+    Een sessie geeft <strong>drie codes</strong>: één voor de gast en één per joystickplek. Gast en
+    telefoon op speler 2 sluiten elkaar niet uit — hun invoer wordt bij elkaar opgeteld, net als
+    toetsenbord en gamepad. De sessie blijft actief tot je op ⏹ Stop sessie drukt, ook zonder gast.</p>
+    <p class="help">📦 <strong>Gearchiveerd.</strong> De opvolger staat op
+    <a href="../">/videopac/</a>: daar draaien host en gast allebei dezelfde emulatie en gaat er
+    alleen invoer over de lijn (± 50 byte/s). Deze streamversie blijft werken, maar krijgt geen
+    nieuwe functies meer.</p>
+  </div>
+
+  <div class="card" id="gamesCard" hidden>
+    <div class="row" style="justify-content:space-between">
+      <strong>🎮 GAMES</strong>
+      <input type="search" id="gamesSearch" placeholder="zoek op nummer of titel…">
+    </div>
+    <div id="gamesList" class="games-list"></div>
+    <p class="help">Catalogus op basis van de Videopac-nummering (videopac.nl) met No-Intro-hashes.
+    Eén klik laadt de ROM <strong>rechtstreeks van archive.org in jouw browser</strong> — deze site
+    host of proxyt geen ROM-bytes; na CRC-verificatie wordt het spel lokaal gecachet (IndexedDB) en
+    is het daarna offline speelbaar. ✓ = lokaal aanwezig.</p>
+  </div>
+
+  <details class="config card" id="configCard">
+    <summary>⚙ Configuratie (thema, kleuren, typografie, layout)</summary>
+    <div class="row" style="margin-top:10px">
+      <label>Thema:
+        <select id="cfgTheme" data-cfg="theme">
+          <option value="dark">donker</option>
+          <option value="light">licht</option>
+        </select>
+      </label>
+      <button id="cfgExport">⬇ Exporteer .json</button>
+      <label style="cursor:pointer"><span class="badge">⬆ Importeer .json</span>
+        <input type="file" id="cfgImport" accept=".json" hidden></label>
+      <button id="cfgReset" class="danger">↺ Reset naar standaard</button>
+    </div>
+    <div class="cfg-grid" id="cfgColors">
+      <label>Accent <input type="color" data-cssvar="--accent"></label>
+      <label>Achtergrond <input type="color" data-cssvar="--bg"></label>
+      <label>Paneel <input type="color" data-cssvar="--panel-bg"></label>
+      <label>Paneelrand <input type="color" data-cssvar="--panel-border"></label>
+      <label>Tekst <input type="color" data-cssvar="--text"></label>
+      <label>Tekst gedimd <input type="color" data-cssvar="--text-dim"></label>
+      <label>Knop primair <input type="color" data-cssvar="--btn-primary"></label>
+      <label>Knop secundair <input type="color" data-cssvar="--btn-secondary"></label>
+      <label>Knop gevaar <input type="color" data-cssvar="--btn-danger"></label>
+      <label>Badge ok <input type="color" data-cssvar="--badge-ok"></label>
+      <label>Badge warn <input type="color" data-cssvar="--badge-warn"></label>
+      <label>Badge fout <input type="color" data-cssvar="--badge-err"></label>
+      <label>Canvasrand <input type="color" data-cssvar="--canvas-border"></label>
+      <label>Canvas-achtergrond <input type="color" data-cssvar="--canvas-bg"></label>
+      <label>Toetsenbord <input type="color" data-cssvar="--kbd-bg"></label>
+    </div>
+    <div class="cfg-grid">
+      <label>Lettertype
+        <select data-cssvar="--font-family" data-kind="raw">
+          <option value='system-ui, -apple-system, "Segoe UI", sans-serif'>Systeem</option>
+          <option value='Georgia, "Times New Roman", serif'>Serif</option>
+          <option value='"Courier New", ui-monospace, monospace'>Mono (retro)</option>
+        </select>
+      </label>
+      <label>Tekstgrootte <input type="range" min="12" max="20" data-cssvar="--font-size" data-unit="px"></label>
+      <label>Kopgrootte <input type="range" min="18" max="40" data-cssvar="--h1-size" data-unit="px"></label>
+      <label>Paginabreedte <input type="range" min="640" max="1400" data-cssvar="--container-w" data-unit="px"></label>
+      <label>Kaart-radius <input type="range" min="0" max="24" data-cssvar="--card-radius" data-unit="px"></label>
+      <label>Kaart-padding <input type="range" min="6" max="32" data-cssvar="--card-pad" data-unit="px"></label>
+      <label>Beeldschaal <input type="range" min="1" max="4" data-cssvar="--canvas-scale" data-kind="scale"></label>
+    </div>
+  </details>
+
+  <footer>
+    VideopacHorse v<span id="verFoot">0.1.0</span> · AGPL-3.0 ·
+    <a href="https://github.com/cpaglebbeek/VideopacHorse_Core">broncode</a> ·
+    100% from-scratch engine, geen ROMs op deze server.
+  </footer>
+</div>
+<script src="../g7000.js?v=0.5.1"></script>
+<script src="pairplay.js?v=0.5.1"></script>
+<script src="../app.js?v=0.5.1"></script>
+<script>
+/* UI wiring voor 🎭 Samen spelen */
+(function(){
+  const el = (id) => document.getElementById(id);
+
+  el('pairplayBtnStart').onclick = () => pairPlay.startHost();
+  el('pairplayBtnJoin').onclick = () => pairPlay.joinGuest(el('pairplayCodeInput').value);
+  el('pairplayBtnStop').onclick = () => {
+    pairPlay.stop();
+    el('pairplayCodeCard').hidden = true;
+    el('pairplayRemoteVideo').style.display = 'none';
+    el('pairplayBtnStop').disabled = true;
+  };
+
+  // Code input: kapitaliseer + valideer
+  el('pairplayCodeInput').addEventListener('input', (ev) => {
+    ev.target.value = ev.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '');
+  });
+
+  /* Host-sessie hervatten na een herlaad: telefoon-joysticks blijven gekoppeld. */
+  pairPlay.restore();
+
+  // Monitor pairplay status
+  setInterval(() => {
+    const status = pairPlay.getStatus();
+    const btn = el('pairplayBtnStop');
+    /* Stoppen moet kunnen zodra er een sessie is — niet pas als er een
+     * WebRTC-gast verbonden is. Een sessie met alleen telefoon-joysticks
+     * (het hoofdscenario van v0.4.0) is óók een sessie, en ⏹ Stop sessie is
+     * de enige manier om hem te beëindigen. */
+    btn.disabled = !status.active;
+    if (status.connected && el('pairplayRemoteVideo').style.display === 'none') {
+      el('pairplayRemoteVideo').style.display = 'block';
+    }
+  }, 500);
+})();
+</script>
+</body>
+</html>

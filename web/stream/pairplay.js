@@ -21,7 +21,7 @@
 'use strict';
 
 const pairPlay = (() => {
-  const API = 'api/';
+  const API = (typeof window !== 'undefined' && window.VPH_API) || 'api/';
   const SIGNAL_POLL_MS = 500;
   const RTC_CONFIG = {
     iceServers: [

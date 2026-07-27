@@ -3,13 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>VideopacHorse — Philips Videopac G7000 emulator</title>
-<link rel="stylesheet" href="style.css?v=0.5.0">
+<title>VideopacHorse — Philips Videopac G7000 emulator met netplay</title>
+<link rel="stylesheet" href="style.css?v=0.5.1">
 </head>
 <body>
 <div class="wrap">
   <h1>Videopac<span>Horse</span></h1>
-  <p class="sub">Philips Videopac G7000 / Magnavox Odyssey² emulator — draait volledig in je browser. <span id="verBadge" class="badge">core laden…</span></p>
+  <p class="sub">Philips Videopac G7000 / Magnavox Odyssey² emulator — draait volledig in je browser.
+  Samen spelen gaat via <strong>netplay</strong>: jullie draaien allebei dezelfde machine.
+  <span id="verBadge" class="badge">core laden…</span></p>
 
   <div class="card">
     <canvas id="screen" width="320" height="240"></canvas>
@@ -26,8 +28,65 @@
       <button id="btnKbd">⌨ Console-toetsenbord</button>
       <button id="btnFullscreen">⛶ Volledig scherm</button>
     </div>
-    <!-- telefoon-joysticks: elk gekoppeld met de joystickcode van hun eigen speler (ctrl-poll) -->
     <div id="ctrlStatus" class="blestatus" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="row" style="justify-content:space-between">
+      <strong>🕹 Netplay</strong>
+      <span id="netStatus" class="badge"></span>
+    </div>
+
+    <div id="netCodeCard" hidden>
+      <div class="codegrid">
+        <div class="codebox">
+          <span class="role">🎭 Gastcode</span>
+          <span class="value" id="netCode">------</span>
+          <span class="hint">voor je medespeler — hij draait zijn eigen machine als speler 2</span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 1</span>
+          <span class="value" id="netCodeP1">------</span>
+          <span class="hint">telefoon aan de kant van de host</span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 2</span>
+          <span class="value" id="netCodeP2">------</span>
+          <span class="hint">telefoon aan de kant van de host; telt op bij de gast</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <button id="netBtnStart" class="primary">🎮 Start netplay (host)</button>
+      <span style="margin: 0 8px;">OF</span>
+      <input type="text" id="netCodeInput" placeholder="gastcode…" maxlength="6"
+             style="font: inherit; background: var(--kbd-bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px; width: 130px;">
+      <button id="netBtnJoin" class="primary">▶ Meedoen</button>
+      <button id="netBtnStop" disabled>⏹ Stop</button>
+    </div>
+
+    <p id="netNotice" class="help" hidden style="color: var(--badge-warn)"></p>
+    <div id="netStats" class="netstats" hidden></div>
+
+    <p class="help">Jullie draaien <strong>allebei dezelfde emulatie</strong> en wisselen alleen invoer
+    uit — enkele tientallen bytes per seconde in plaats van een videostream. Je medespeler ziet dus zijn
+    eigen scherpe beeld en hoort zijn eigen geluid, precies zoals jij. De oudere variant, waarbij de host
+    zijn scherm naar de gast <em>streamde</em>, staat gearchiveerd op
+    <a href="stream/">/videopac/stream/</a>.</p>
+
+    <p class="help"><strong>Hoe het werkt.</strong> Bij het verbinden vertelt de host welke BIOS en
+    welke cartridge hij draait (aan de CRC te herkennen). Jouw browser haalt precies díé bestanden
+    zelf op — uit je eigen cache of van dezelfde publieke bron als de GAMES-lijst. Daarna telt elke
+    ingedrukte knop pas een paar frames later mee, zodat de invoer van de ander op tijd binnen is.
+    Elke ~2 seconden vergelijken beide machines een hash van hun volledige toestand; wijken ze af,
+    dan zet de host de gast bij met een savestate.</p>
+
+    <p class="help"><strong>Wat je merkt.</strong> Invoer voelt iets trager dan lokaal (de vertraging
+    staat hieronder in frames en past zich aan de gemeten looptijd aan). Hapert de verbinding, dan
+    staat het beeld even stil in plaats van dat het gaat schokken — beide machines moeten immers
+    exact gelijk blijven. Pauzeert één kant, dan wacht de ander; dat is geen storing.
+    Telefoon-joysticks koppelen aan de kant van de <em>host</em>.</p>
   </div>
 
   <div class="card">
@@ -45,60 +104,10 @@
       <button id="btnBiosUrl">⬇ BIOS laden van archive.org</button>
       <span id="biosUrlStatus" class="help"></span>
     </div>
-    <p class="help">Je BIOS (<code>o2rom.bin</code>, 1024 bytes — dump van je eigen console) en game-ROMs
-    blijven <strong>in je browser</strong> (IndexedDB). Er wordt niets geüpload; deze site heeft geen backend.
-    Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
-    console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.
-    <strong>Telefoon als joystick:</strong> start hieronder een sessie, open de app
-    <em>VideopacHorse Joystick</em> op je Android-telefoon en tik de <strong>joystickcode</strong> over van de speler die je wilt zijn.
-    Geen Bluetooth, geen koppelen in Android — alleen die code (één telefoon per speler,
-    werkt in elke browser).</p>
-  </div>
-
-  <div class="card">
-    <div class="row" style="justify-content:space-between">
-      <strong>🎭 Samen spelen</strong>
-      <span id="pairplayStatus" class="badge"></span>
-    </div>
-    <div id="pairplayCodeCard" hidden>
-      <div class="codegrid">
-        <div class="codebox">
-          <span class="role">🎭 Gastcode</span>
-          <span class="value" id="pairplayCode">------</span>
-          <span class="hint">voor je medespeler op afstand — hij wordt speler 2</span>
-        </div>
-        <div class="codebox">
-          <span class="role">🎮 Joystickcode speler 1</span>
-          <span class="value" id="pairplayCodeP1">------</span>
-          <span class="hint">voor één telefoon met de app <em>VideopacHorse Joystick</em></span>
-        </div>
-        <div class="codebox">
-          <span class="role">🎮 Joystickcode speler 2</span>
-          <span class="value" id="pairplayCodeP2">------</span>
-          <span class="hint">voor één telefoon; werkt samen met de gast op speler 2</span>
-        </div>
-      </div>
-      <p class="help">Elke code hoort bij precies één plek — je kunt ze niet omwisselen.
-      Ze blijven geldig zolang de sessie loopt; stop je de sessie, dan vervallen ze alle drie.</p>
-    </div>
-    <div class="row">
-      <button id="pairplayBtnStart" class="primary">🎮 Start sessie (host)</button>
-      <span style="margin: 0 8px;">OF</span>
-      <input type="text" id="pairplayCodeInput" placeholder="6-tekens code…" maxlength="6" style="font: inherit; background: var(--kbd-bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px; width: 120px;">
-      <button id="pairplayBtnJoin" class="primary">▶ Meedoen (gast)</button>
-      <button id="pairplayBtnStop" disabled>⏹ Stop sessie</button>
-    </div>
-    <video id="pairplayRemoteVideo" style="display:none; width:100%; max-width:100%; margin-top:12px; border-radius:6px; border:1px solid var(--panel-border);"></video>
-    <p class="help">Start een sessie als host (je draait de emulator en streamt het scherm) of join als gast
-    (je ziet de stream van de host en stuurt je input als speler 2). De WebRTC-verbinding is P2P over
-    LAN of internet; de server ziet alleen handshake-metadata. Audio: gast hoort de host-PC-output.
-    Een sessie geeft <strong>drie codes</strong>: één voor de gast en één per joystickplek. Gast en
-    telefoon op speler 2 sluiten elkaar niet uit — hun invoer wordt bij elkaar opgeteld, net als
-    toetsenbord en gamepad. De sessie blijft actief tot je op ⏹ Stop sessie drukt, ook zonder gast.</p>
-    <p class="help">🧪 <strong>Nieuw: <a href="2/">netplay-variant op /videopac/2/</a></strong> — daar
-    gaat er geen beeld meer over de lijn. Host en gast draaien allebei dezelfde emulatie en wisselen
-    alleen invoer uit (± 50 byte/s), dus de gast krijgt een scherp beeld en het geluid van zijn eigen
-    machine in plaats van een videostream.</p>
+    <p class="help">BIOS en ROM's blijven <strong>in je browser</strong> (IndexedDB) — deze site host
+    of proxyt geen ROM-bytes. Als host kies je hieronder een spel; als gast hoef je niets te kiezen,
+    je krijgt automatisch hetzelfde spel als de host. Alleen wanneer de host een bestand speelt dat
+    nergens publiek te vinden is, komt het rechtstreeks van hem — dat meldt de pagina dan.</p>
   </div>
 
   <div class="card" id="gamesCard" hidden>
@@ -107,10 +116,8 @@
       <input type="search" id="gamesSearch" placeholder="zoek op nummer of titel…">
     </div>
     <div id="gamesList" class="games-list"></div>
-    <p class="help">Catalogus op basis van de Videopac-nummering (videopac.nl) met No-Intro-hashes.
-    Eén klik laadt de ROM <strong>rechtstreeks van archive.org in jouw browser</strong> — deze site
-    host of proxyt geen ROM-bytes; na CRC-verificatie wordt het spel lokaal gecachet (IndexedDB) en
-    is het daarna offline speelbaar. ✓ = lokaal aanwezig.</p>
+    <p class="help">Als host: kies hier het spel, ook tijdens een lopende sessie — je medespeler
+    laadt hem dan automatisch en beide machines beginnen opnieuw.</p>
   </div>
 
   <details class="config card" id="configCard">
@@ -162,48 +169,33 @@
   </details>
 
   <footer>
-    VideopacHorse v<span id="verFoot">0.1.0</span> · AGPL-3.0 ·
+    VideopacHorse v<span id="verFoot">0.5.0</span> · AGPL-3.0 ·
     <a href="https://github.com/cpaglebbeek/VideopacHorse_Core">broncode</a> ·
-    100% from-scratch engine, geen ROMs op deze server.
+    100% from-scratch engine, geen ROMs op deze server ·
+    <a href="stream/">gearchiveerde streamversie</a>
   </footer>
 </div>
-<script src="g7000.js?v=0.5.0"></script>
-<script src="pairplay.js?v=0.5.0"></script>
-<script src="app.js?v=0.5.0"></script>
+<script src="g7000.js?v=0.5.1"></script>
+<script src="netplay.js?v=0.5.1"></script>
+<script src="app.js?v=0.5.1"></script>
 <script>
-/* UI wiring voor 🎭 Samen spelen */
-(function(){
+/* UI-wiring. netplay levert dezelfde vorm als pairPlay, dus app.js (telefoon-
+ * joysticks, gast-invoer) werkt hier ongewijzigd. */
+(function () {
   const el = (id) => document.getElementById(id);
 
-  el('pairplayBtnStart').onclick = () => pairPlay.startHost();
-  el('pairplayBtnJoin').onclick = () => pairPlay.joinGuest(el('pairplayCodeInput').value);
-  el('pairplayBtnStop').onclick = () => {
-    pairPlay.stop();
-    el('pairplayCodeCard').hidden = true;
-    el('pairplayRemoteVideo').style.display = 'none';
-    el('pairplayBtnStop').disabled = true;
-  };
+  el('netBtnStart').onclick = () => netplay.startHost();
+  el('netBtnJoin').onclick = () => netplay.joinGuest(el('netCodeInput').value);
+  el('netBtnStop').onclick = () => netplay.stop();
 
-  // Code input: kapitaliseer + valideer
-  el('pairplayCodeInput').addEventListener('input', (ev) => {
+  el('netCodeInput').addEventListener('input', ev => {
     ev.target.value = ev.target.value.toUpperCase().replace(/[^A-Z2-9]/g, '');
   });
 
-  /* Host-sessie hervatten na een herlaad: telefoon-joysticks blijven gekoppeld. */
-  pairPlay.restore();
+  netplay.restore();
 
-  // Monitor pairplay status
   setInterval(() => {
-    const status = pairPlay.getStatus();
-    const btn = el('pairplayBtnStop');
-    /* Stoppen moet kunnen zodra er een sessie is — niet pas als er een
-     * WebRTC-gast verbonden is. Een sessie met alleen telefoon-joysticks
-     * (het hoofdscenario van v0.4.0) is óók een sessie, en ⏹ Stop sessie is
-     * de enige manier om hem te beëindigen. */
-    btn.disabled = !status.active;
-    if (status.connected && el('pairplayRemoteVideo').style.display === 'none') {
-      el('pairplayRemoteVideo').style.display = 'block';
-    }
+    el('netBtnStop').disabled = !netplay.getStatus().active;
   }, 500);
 })();
 </script>

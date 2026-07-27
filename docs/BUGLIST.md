@@ -274,6 +274,22 @@ Conventie: kleurcode (Groen fysiek / Geel logisch / Rood conceptueel) + RCA op d
   hun canvassen op hetzelfde moment vergelijken geeft valse alarmen. De juiste maat is de
   state-hash bij hetzelfde framenummer.
 
+## Geprobeerd en teruggedraaid — savestate sturen bij lang wachten (27-07)
+
+Bij het verhuizen van netplay naar `/videopac/` leek het slim om de host na 2 s
+wachten een savestate te laten sturen: "de ander loopt achter, zet hem bij". Gemeten
+resultaat: host bleef op **frame 15** steken met 8 resyncs in 20 s.
+
+- **RCA:** de aanname klopte niet. Wie stalt is juist de kant die niet vérder kan —
+  hij wacht op invoer. De ander loopt dus vóór, en een savestate van de wachtende
+  kant zet die vooruitlopende medespeler terug. Bij het opstarten (host wacht normaal
+  even op een ladende gast) ging dat meteen in herhaling.
+- **Werkelijk gedrag:** inhalen kost hooguit `delay` frames, want de wachtende kant
+  is zélf ook gestopt. Gemeten hersteltijd na 2,5 s én na 6 s bevriezing: **0,2-0,3 s**.
+- **Les:** een herstelmechanisme mag niet op een vermoeden over "wie loopt achter"
+  worden gebouwd; meet eerst wat er werkelijk gebeurt. Savestates blijven voor waar ze
+  voor zijn: een echte desync (ongelijke state-hash).
+
 ## Afgewogen en niet gefixt (bewust)
 
 - **Code = bearer-credential (4 uur).** `sessions.code` blijft sinds v0.4.0 geldig omdat

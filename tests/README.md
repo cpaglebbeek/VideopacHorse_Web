@@ -13,8 +13,8 @@ dus nooit aangeraakt — een test mag geen lopende sessie van iemand anders slop
 | Suite | Bestand | Wat het bewijst |
 |---|---|---|
 | API | `api_test.sh` | drie codes per sessie, rol per code (gastcode ≠ joystickcode), één telefoon per plek, gast kan joinen mét twee telefoons, `pair-end` maakt alle drie de codes dood, en 6 gelijktijdige `ctrl-join`-verzoeken op dezelfde code leveren precies één winnaar |
-| /videopac/ | `pairplay_e2e.py` | twee echte browsers: gast verbindt terwijl beide joystickplekken bezet zijn, en de host ziet op speler 2 de **gecombineerde** stand 24 = 8 (telefoon) \| 16 (gast) |
-| /videopac/2/ | `netplay_e2e.py` | netplay tussen twee browsers: gast haalt de cartridge zélf op (CRC gelijk, niets over de lijn), consoletoets en FIRE van de host lopen mee, en de **state-hash bij hetzelfde framenummer** is aan beide kanten gelijk |
+| /videopac/stream/ (archief) | `pairplay_e2e.py` | twee echte browsers: gast verbindt terwijl beide joystickplekken bezet zijn, en de host ziet op speler 2 de **gecombineerde** stand 24 = 8 (telefoon) \| 16 (gast) |
+| /videopac/ | `netplay_e2e.py` | netplay tussen twee browsers: gast haalt de cartridge zélf op (CRC gelijk, niets over de lijn), consoletoets en FIRE van de host lopen mee, en de **state-hash bij hetzelfde framenummer** is aan beide kanten gelijk |
 
 ## ROM's
 

@@ -31,9 +31,9 @@ print "\n### API-suite (drie codes, rollen, gelijktijdigheid)"
 VPH_API_URL="http://127.0.0.1:$port/api/" zsh "$here/api_test.sh" || fails=$((fails+1))
 
 if [[ -n "${VPH_ROMDIR:-}" && -f "$VPH_ROMDIR/o2rom.bin" ]]; then
-  print "\n### /videopac/ — drie codes + OR-merge op speler 2"
+  print "\n### /videopac/stream/ (gearchiveerd) — drie codes + OR-merge op speler 2"
   VPH_BASE_URL="http://127.0.0.1:$port" python3 "$here/pairplay_e2e.py" || fails=$((fails+1))
-  print "\n### /videopac/2/ — netplay tussen twee browsers"
+  print "\n### /videopac/ — netplay tussen twee browsers"
   VPH_BASE_URL="http://127.0.0.1:$port" python3 "$here/netplay_e2e.py" || fails=$((fails+1))
 else
   print "\n(browsertests overgeslagen: zet VPH_ROMDIR naar een map met o2rom.bin + cart14.bin)"
