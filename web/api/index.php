@@ -1,24 +1,35 @@
 <?php
 /**
- * VideopacHorse Pairing + Controller API — v0.4.0 Videopac-Pioneer
+ * VideopacHorse Pairing + Controller API — v0.5.0 Videopac-Pioneer
  *
  * (1) WebRTC P2P multiplayer signaling voor 🎭 Samen spelen.
  *     Twee gebruikers pairen via 6-tekens code, WebRTC handshake via signal-queue,
- *     daarna gaat alle media P2P (canvas-stream host → gast, gast-input via DataChannel).
- *     Server ziet ALLEEN SDP/ICE (geen media-content).
- * (2) Telefoon-als-joystick over internet ("controllers"): een telefoon joint met
- *     dezelfde 6-tekens code en krijgt een slot (0 = speler 1, 1 = speler 2). De
- *     host pollt de laatst bekende maskers. Geen media, alleen 5 bits per speler.
+ *     daarna gaat alles P2P: op /videopac/ een canvas-stream host → gast, op
+ *     /videopac/2/ (netplay) alléén een DataChannel met input per frame.
+ *     Server ziet ALLEEN SDP/ICE (geen media-content, geen ROM-bytes).
+ * (2) Telefoon-als-joystick over internet ("controllers").
+ *
+ * DRIE CODES per sessie (v0.5.0, gebruikerswens 27-07). Vóór deze versie deelden
+ * gast en telefoons één code en moest de SERVER raden wie welke plek kreeg; dat
+ * gaf structureel drie verhalen over dezelfde bezetting (zie BUG-009). Nu bepáált
+ * de code de rol — er valt niets meer toe te wijzen:
+ *   - `code`          -> 🎭 gastcode: max één gast (WebRTC-peer, speler 2)
+ *   - `ctrl_code_p1`  -> 🎮 joystickcode speler 1: max één telefoon
+ *   - `ctrl_code_p2`  -> 🎮 joystickcode speler 2: max één telefoon
+ * Gast en telefoon-P2 sturen allebei speler 2 aan; die twee worden in de client
+ * ge-OR'd, precies zoals toetsenbord en gamepad dat al deden (pushJoy in app.js).
+ * Er is dus GEEN exclusiviteit meer en geen kruisvalidatie tussen de endpoints.
  *
  * Endpoints (POST JSON):
- *   pair-create       -> {code, host_token, expires_at}; sessie 4 uur
- *   pair-join {code}  -> {guest_token, expires_at}; MAX ÉÉN gast per sessie
- *                        (code blijft geldig: controllers gebruiken 'm ook);
- *                        409 als speler 2 al door een telefoon-joystick bezet is
+ *   pair-create       -> {code, ctrl_code_p1, ctrl_code_p2, host_token, expires_at}
+ *                        sessie 4 uur
+ *   pair-join {code}  -> {guest_token, expires_at}; alleen de GASTCODE; max één gast
  *   pair-end {token=host} -> {ok}; sessie + controllers direct opruimen
  *   rtc-signal-send {token, type, payload} -> {ok}
  *   rtc-signal-poll {token} -> {signals: [{type, payload}]}; delete after delivery
- *   ctrl-join  {code}          -> {ctrl_token, slot, expires_at}; max 2, anders 409
+ *   ctrl-join  {code}          -> {ctrl_token, slot, expires_at}; een JOYSTICKCODE;
+ *                                 het slot volgt uit de code (p1 -> 0, p2 -> 1);
+ *                                 409 als die plek al door een levende telefoon bezet is
  *   ctrl-input {token, mask}   -> {ok}; mask 0..31 (bit0 UP .. bit4 FIRE == G7K_JOY_*)
  *   ctrl-poll  {token=host}    -> {controllers:[{slot, mask, age_ms}]}; alleen de host
  *   ctrl-leave {token}         -> {ok}; slot vrijgeven
@@ -39,7 +50,10 @@ const RTC_SIGNAL_LIMIT = 32768;        // Max 32 KB per signal (SDP ~4-8KB)
 const RTC_QUEUE_MAX = 50;              // Max pending signals per target
 const CODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ23456789';  // 34 chars
 const CODE_LEN = 6;
-const CTRL_MAX = 2;                    // Max 2 joysticks per sessie (slot 0/1)
+/* Twee plekken, want de console heeft twee joystickpoorten. Sinds v0.5.0 volgt
+ * de plek uit de code (p1 -> 0, p2 -> 1) en is dit geen teller meer maar de
+ * grens waarbinnen een slotnummer geldig is. */
+const CTRL_SLOTS = 2;
 const CTRL_TTL_SECONDS = 60;           // Controller zonder input ⇒ opruimen
 const CTRL_MASK_MAX = 31;              // 5 bits: UP|DOWN|LEFT|RIGHT|FIRE
 
@@ -89,7 +103,7 @@ function db(): PDO {
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS sessions (
             token           TEXT PRIMARY KEY,
-            code            TEXT UNIQUE,               -- NULL na join (single-use)
+            code            TEXT UNIQUE,               -- gastcode (🎭 Samen spelen)
             host_token      TEXT,
             guest_token     TEXT,
             created_at      INTEGER NOT NULL,
@@ -123,6 +137,34 @@ function db(): PDO {
 
         CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v INTEGER);
     ");
+
+    /* v0.5.0-migratie: twee joystickcodes erbij. SQLite kent geen
+     * "ADD COLUMN IF NOT EXISTS", dus eerst kijken wat er al staat — dit draait
+     * bij ELK verzoek, dus het moet goedkoop en foutloos herhaalbaar zijn.
+     * Bestaande sessies uit v0.4.x houden NULL in beide kolommen: hun
+     * joystickcodes bestaan simpelweg niet meer, ze verlopen vanzelf binnen de
+     * sessie-TTL. Een UNIQUE-index staat meerdere NULLs toe, dus dat botst niet. */
+    $cols = [];
+    foreach ($pdo->query("PRAGMA table_info(sessions)") as $c) {
+        $cols[$c['name']] = true;
+    }
+    if (empty($cols['ctrl_code_p1'])) {
+        $pdo->exec('ALTER TABLE sessions ADD COLUMN ctrl_code_p1 TEXT');
+    }
+    if (empty($cols['ctrl_code_p2'])) {
+        $pdo->exec('ALTER TABLE sessions ADD COLUMN ctrl_code_p2 TEXT');
+    }
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cp1 ON sessions(ctrl_code_p1)');
+    $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_cp2 ON sessions(ctrl_code_p2)');
+    /* Eén telefoon per plek — afgedwongen door de database, niet alleen door de
+     * controle in ctrl-join. Kan bij een oude db met dubbele rijen falen; dat mag
+     * nooit een 500 op elk verzoek geven, dus de index is hier best-effort. */
+    try {
+        $pdo->exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_controllers_slot
+                    ON controllers(session_token, slot)');
+    } catch (PDOException $e) {
+        error_log('[videopac-api] slot-index niet aangemaakt: ' . substr($e->getMessage(), 0, 120));
+    }
 
     @chmod(DB_PATH, 0600);
     return $pdo;
@@ -214,7 +256,11 @@ function requireCodeShape($code): string {
     return $code;
 }
 
-function newCode(): string {
+/* $exclude: codes die in ditzelfde verzoek al zijn uitgedeeld maar nog niet in de
+ * database staan (pair-create maakt er drie tegelijk). Zonder dat kunnen twee
+ * rollen binnen één sessie dezelfde code krijgen — zeldzaam, maar dan is de rol
+ * niet meer af te leiden uit de code, en dát is nu juist het hele ontwerp. */
+function newCode(array $exclude = []): string {
     $alphabet = CODE_ALPHABET;
     $len = strlen($alphabet);
 
@@ -223,12 +269,18 @@ function newCode(): string {
         for ($i = 0; $i < CODE_LEN; $i++) {
             $code .= $alphabet[random_int(0, $len - 1)];
         }
+        if (in_array($code, $exclude, true)) {
+            continue;
+        }
 
-        /* Botsingscheck over ÁLLE rijen, niet alleen de niet-verlopen: sinds
-         * v0.4.0 blijft `code` staan (controllers joinen er ook mee), dus een
-         * verlopen-maar-nog-niet-opgeruimde rij houdt de UNIQUE-index bezet. */
-        $st = db()->prepare('SELECT 1 FROM sessions WHERE code=?');
-        $st->execute([$code]);
+        /* Botsingscheck over ÁLLE rijen én alle DRIE de codekolommen (v0.5.0).
+         * Niet alleen de niet-verlopen: de codes blijven staan tot de GC ze
+         * opruimt, dus een verlopen-maar-nog-aanwezige rij houdt de UNIQUE-index
+         * bezet. En niet alleen `code`: een joystickcode die toevallig gelijk is
+         * aan een gastcode van een andere sessie zou de rollen laten kruisen. */
+        $st = db()->prepare('SELECT 1 FROM sessions
+                             WHERE code=:c OR ctrl_code_p1=:c OR ctrl_code_p2=:c');
+        $st->execute([':c' => $code]);
         if (!fetchVal($st)) {
             return $code;
         }
@@ -322,27 +374,34 @@ $action = $in['action'] ?? '';
 switch ($action) {
 
 case 'pair-create': {
-    // HOST: maak nieuwe pairing-sessie aan
+    /* HOST: nieuwe sessie met DRIE codes (v0.5.0) — één per rol. */
     $code = newCode();
+    $codeP1 = newCode([$code]);
+    $codeP2 = newCode([$code, $codeP1]);
     $hostToken = newToken();
     $now = time();
     $expiresAt = $now + (TTL_SESSION_HOURS * 3600);
 
-    withRetry(function () use ($hostToken, $code, $now, $expiresAt) {
-        db()->prepare('INSERT INTO sessions(token, code, host_token, created_at, expires_at) VALUES(?,?,?,?,?)')
-            ->execute([$hostToken, $code, $hostToken, $now, $expiresAt]);
+    withRetry(function () use ($hostToken, $code, $codeP1, $codeP2, $now, $expiresAt) {
+        db()->prepare('INSERT INTO sessions(token, code, ctrl_code_p1, ctrl_code_p2,
+                                            host_token, created_at, expires_at)
+                       VALUES(?,?,?,?,?,?,?)')
+            ->execute([$hostToken, $code, $codeP1, $codeP2, $hostToken, $now, $expiresAt]);
         return true;
     });
 
     ok([
         'code' => $code,
+        'ctrl_code_p1' => $codeP1,
+        'ctrl_code_p2' => $codeP2,
         'host_token' => $hostToken,
         'expires_at' => $expiresAt,
     ]);
 }
 
 case 'pair-join': {
-    // GAST: join via code
+    /* GAST: join via de GASTCODE. Een joystickcode werkt hier bewust niet —
+     * die hoort bij ctrl-join. */
     $code = requireCodeShape($in['code'] ?? '');
 
     /* Goedkope voorcontrole (read-only) — pas daarna het schrijfslot nemen. */
@@ -353,16 +412,14 @@ case 'pair-join': {
         fail('code verlopen of onbekend');
     }
 
-    /* v0.4.0: de code wordt NIET meer op NULL gezet. Hij blijft geldig omdat
-     * telefoon-joysticks (ctrl-join) dezelfde code gebruiken.
+    /* v0.4.0: de code wordt NIET meer op NULL gezet — de sessie blijft leven
+     * zolang de host hem niet stopt.
      *
-     * BUG-009 (v0.4.0-Rusch): de cap is nu SYMMETRISCH. ctrl-join telde de gast
-     * al mee als speler 2, maar pair-join keek alleen naar guest_token en negeerde
-     * bezette controller-slots — een telefoon in slot 1 raakte daardoor stil
-     * dubbel bezet (server, host-UI en telefoon vertelden drie verhalen).
-     * Regel: maximaal 2 spelers per sessie; de gast IS speler 2, dus slot 1 moet
-     * vrij zijn. Alles binnen BEGIN IMMEDIATE, zodat een ctrl-join er niet
-     * tussendoor kan glippen (zelfde venster-regel als bij ctrl-join zelf).
+     * v0.5.0: de controle op bezette controller-slots (de BUG-009-fix) is hier
+     * VERVALLEN en dat is geen versoepeling maar een gevolg van het ontwerp: de
+     * gastcode geeft alleen toegang tot de gastplek, en gast + telefoon-P2 worden
+     * client-side ge-OR'd op speler 2. Er valt niets meer dubbel te bezetten, dus
+     * ook niets meer te synchroniseren tussen twee endpoints.
      * fail() mag hier niet: dat doet exit() en zou de transactie open laten. */
     $guestToken = newToken();
     $res = withRetry(function () use ($guestToken, $code) {
@@ -378,14 +435,6 @@ case 'pair-join': {
             if (!empty($sess['guest_token'])) {
                 db()->exec('ROLLBACK');
                 return ['err' => ['deze sessie is al bezet', 400]];
-            }
-
-            $q = db()->prepare('SELECT slot FROM controllers WHERE session_token=?');
-            $q->execute([$sess['token']]);
-            $slots = array_map('intval', $q->fetchAll(PDO::FETCH_COLUMN));
-            if (in_array(1, $slots, true) || count($slots) >= CTRL_MAX) {
-                db()->exec('ROLLBACK');
-                return ['err' => ['speler 2 is bezet door een telefoon-joystick', 409]];
             }
 
             $st = db()->prepare("UPDATE sessions SET guest_token=?
@@ -526,16 +575,20 @@ case 'rtc-signal-poll': {
 /* ---------------- telefoon-joysticks (controllers) ---------------- */
 
 case 'ctrl-join': {
-    /* Telefoon joint met dezelfde sessiecode als de "Samen spelen"-gast en
-     * krijgt het laagste vrije slot (0 = speler 1, 1 = speler 2). */
+    /* Telefoon joint met een JOYSTICKCODE. De code bepaalt de plek:
+     * ctrl_code_p1 -> slot 0 (speler 1), ctrl_code_p2 -> slot 1 (speler 2).
+     * De server wijst dus niets meer toe en hoeft niet naar de gast te kijken:
+     * de gastcode is een andere code, en op speler 2 worden gast en telefoon
+     * client-side ge-OR'd. */
     $code = requireCodeShape($in['code'] ?? '');
 
     /* Eerst read-only vaststellen dát de code bestaat; pas daarna het schrijfslot
      * nemen. Vóór v0.4.0-Rusch opende élk verzoek met een willekeurige geldig
      * gevormde code eerst BEGIN IMMEDIATE en nam zo het enige schrijfslot van de
      * gedeelde SQLite-db, om vervolgens 400 te geven. */
-    $st = db()->prepare('SELECT 1 FROM sessions WHERE code=? AND expires_at>?');
-    $st->execute([$code, time()]);
+    $st = db()->prepare('SELECT 1 FROM sessions
+                         WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c) AND expires_at>:now');
+    $st->execute([':c' => $code, ':now' => time()]);
     if (!fetchVal($st)) {
         fail('code verlopen of onbekend');
     }
@@ -543,43 +596,41 @@ case 'ctrl-join': {
     $ctrlToken = newToken();
     $nowMs = nowMs();
 
-    /* Slot-toewijzing atomair: twee telefoons kunnen tegelijk joinen. Met
-     * BEGIN IMMEDIATE ligt het schrijfslot er meteen, dus de SELECT die de
-     * bezette slots bepaalt en de INSERT zitten in hetzelfde venster —
-     * niemand kan er tussen glippen (zelfde reden als BUG-007). Fouten
-     * worden als waarde teruggegeven, niet als fail(): fail() doet exit en
-     * zou de transactie open laten staan. */
+    /* Atomair binnen BEGIN IMMEDIATE: de controle "is deze plek vrij?" en de
+     * INSERT moeten in hetzelfde schrijfvenster zitten, anders koppelen twee
+     * telefoons die tegelijk dezelfde code intikken allebei op dezelfde plek
+     * (zelfde reden als BUG-007). Fouten worden als waarde teruggegeven, niet
+     * als fail(): fail() doet exit en zou de transactie open laten staan. */
     $res = withRetry(function () use ($code, $ctrlToken, $nowMs) {
         db()->exec('BEGIN IMMEDIATE');
         try {
-            $st = db()->prepare('SELECT token, guest_token, expires_at FROM sessions WHERE code=? AND expires_at>?');
-            $st->execute([$code, time()]);
+            $st = db()->prepare('SELECT token, ctrl_code_p1, ctrl_code_p2, expires_at
+                                 FROM sessions
+                                 WHERE (ctrl_code_p1=:c OR ctrl_code_p2=:c) AND expires_at>:now');
+            $st->execute([':c' => $code, ':now' => time()]);
             $sess = fetchRow($st);
             if (!$sess) {
                 db()->exec('ROLLBACK');
                 return ['err' => ['code verlopen of onbekend', 400]];
             }
 
-            /* Bezet = bestaande controller-rijen + slot 1 als er een
-             * "Samen spelen"-gast hangt (die ís speler 2, zie
-             * guestOwnsPlayer2() in web/app.js). */
-            $taken = [];
-            if (!empty($sess['guest_token'])) {
-                $taken[1] = true;
-            }
-            $q = db()->prepare('SELECT slot FROM controllers WHERE session_token=?');
-            $q->execute([$sess['token']]);
-            foreach ($q->fetchAll(PDO::FETCH_COLUMN) as $s) {
-                $taken[(int)$s] = true;
-            }
+            $slot = ($sess['ctrl_code_p1'] === $code) ? 0 : 1;
 
-            $slot = null;
-            for ($i = 0; $i < CTRL_MAX; $i++) {
-                if (empty($taken[$i])) { $slot = $i; break; }
-            }
-            if ($slot === null) {
-                db()->exec('ROLLBACK');
-                return ['err' => ['maximaal 2 joysticks', 409]];
+            /* Zit er al een telefoon op deze plek? Dan alleen overnemen als die
+             * STIL is (geen ctrl-input binnen de TTL). Zonder die uitzondering
+             * moet iemand wiens telefoon crashte of het scherm vergrendelde tot
+             * 60 s wachten op de GC voordat hij weer kan koppelen — precies op
+             * het moment dat hij snel terug wil in het spel. */
+            $q = db()->prepare('SELECT token, updated_at FROM controllers
+                                WHERE session_token=? AND slot=?');
+            $q->execute([$sess['token'], $slot]);
+            $cur = fetchRow($q);
+            if ($cur) {
+                if ($nowMs - (int)$cur['updated_at'] < CTRL_TTL_SECONDS * 1000) {
+                    db()->exec('ROLLBACK');
+                    return ['err' => ['deze plek is al bezet door een telefoon', 409]];
+                }
+                db()->prepare('DELETE FROM controllers WHERE token=?')->execute([$cur['token']]);
             }
 
             db()->prepare('INSERT INTO controllers(token, session_token, slot, mask, updated_at) VALUES(?,?,?,0,?)')
@@ -646,8 +697,9 @@ case 'ctrl-poll': {
     }
 
     $nowMs = nowMs();
-    $q = db()->prepare('SELECT slot, mask, updated_at FROM controllers WHERE session_token=? ORDER BY slot');
-    $q->execute([$token]);
+    $q = db()->prepare('SELECT slot, mask, updated_at FROM controllers
+                        WHERE session_token=? AND slot>=0 AND slot<? ORDER BY slot');
+    $q->execute([$token, CTRL_SLOTS]);
 
     $controllers = [];
     foreach ($q->fetchAll(PDO::FETCH_ASSOC) as $row) {

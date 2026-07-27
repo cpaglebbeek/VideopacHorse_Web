@@ -1,13 +1,15 @@
 /*
- * pairplay.js — VideopacHorse 🎭 Samen spelen (v0.4.0)
+ * pairplay.js — VideopacHorse 🎭 Samen spelen (v0.5.0)
  *
  * WebRTC P2P multiplayer: twee bezoekers pairen via 6-tekens code.
  * Host draait emulator + streamt canvas (50fps) + WebAudio-tap naar gast.
  * Gast ontvangt stream via WebRTC, input (toetsenbord/gamepad) gaat via DataChannel
  * naar host → speler 2.
  *
- * De sessie is sinds v0.4.0 méér dan "Samen spelen": dezelfde code koppelt ook
- * telefoon-joysticks (zie ctrlPad in app.js). Een sessie zonder gast is dus een
+ * Eén sessie, DRIE codes (v0.5.0): een gastcode voor de WebRTC-medespeler en twee
+ * joystickcodes, één per telefoonplek (zie ctrlPad in app.js en de kop van
+ * api/index.php). De rol zit in de code, dus deze module hoeft alleen nog de
+ * gastcode te gebruiken en de andere twee te tónen. Een sessie zonder gast is een
  * volstrekt normale, gewenste situatie en mag NOOIT automatisch worden
  * afgebroken — alleen de host stopt hem, met ⏹ Stop sessie.
  *
@@ -38,7 +40,9 @@ const pairPlay = (() => {
     mode: null,           // 'host' | 'guest' | null
     hostToken: null,
     guestToken: null,
-    code: null,
+    code: null,          // gastcode (de enige die deze module zélf gebruikt)
+    codeP1: null,        // joystickcode speler 1 — alleen tonen
+    codeP2: null,        // joystickcode speler 2 — alleen tonen
     expiresAt: 0,         // epoch-seconden van de serversessie (4 uur)
     pc: null,             // RTCPeerConnection
     localStream: null,    // Host's canvas-stream
@@ -96,7 +100,8 @@ const pairPlay = (() => {
   }
 
   function saveHostSession(code, hostToken, expiresAt) {
-    const sess = { code, hostToken, expiresAt, startedAt: Date.now() };
+    const sess = { code, codeP1: state.codeP1, codeP2: state.codeP2,
+                   hostToken, expiresAt, startedAt: Date.now() };
     localStorage.setItem(LS_HOST_KEY, JSON.stringify(sess));
     return sess;
   }
@@ -105,6 +110,18 @@ const pairPlay = (() => {
     localStorage.removeItem(LS_HOST_KEY);
     state.hostToken = null;
     state.code = null;
+    state.codeP1 = null;
+    state.codeP2 = null;
+  }
+
+  /* De drie codes in beeld zetten. Eén plek waar dat gebeurt, zodat host-start
+   * en herstel na een hapering niet uit elkaar kunnen lopen. */
+  function showCodes() {
+    const set = (id, v) => { const e = $(id); if (e) e.textContent = v || '------'; };
+    set('pairplayCode', state.code);
+    set('pairplayCodeP1', state.codeP1);
+    set('pairplayCodeP2', state.codeP2);
+    if ($('pairplayCodeCard')) $('pairplayCodeCard').hidden = false;
   }
 
   function saveGuestSession(guestToken, expiresAt) {
@@ -485,8 +502,8 @@ const pairPlay = (() => {
     closePeer();
     createPeerConnection(false);
     setupCanvasCapture();
-    setStatus((reason ? reason + ' — ' : '') + 'code: ' + state.code + ' (wacht op gast…)', '');
-    if (el('pairplayCodeCard')) el('pairplayCodeCard').hidden = false;
+    setStatus((reason ? reason + ' — ' : '') + 'gastcode: ' + state.code + ' (wacht op gast…)', '');
+    showCodes();
   }
 
   function el(id) { return document.getElementById(id); }
@@ -536,11 +553,14 @@ const pairPlay = (() => {
 
       try {
         const resp = await apiCall('pair-create', {});
-        const { code, host_token: hostToken, expires_at: expiresAt } = resp;
+        const { code, ctrl_code_p1: codeP1, ctrl_code_p2: codeP2,
+                host_token: hostToken, expires_at: expiresAt } = resp;
 
         state.mode = 'host';
         state.hostToken = hostToken;
         state.code = code;
+        state.codeP1 = codeP1;
+        state.codeP2 = codeP2;
         state.expiresAt = expiresAt | 0;
         saveHostSession(code, hostToken, expiresAt);
 
@@ -551,9 +571,8 @@ const pairPlay = (() => {
         setupCanvasCapture();
 
         // Host wacht tot gast join
-        setStatus('code: ' + code + ' (wacht op gast…)', 'busy');
-        $('pairplayCode').textContent = code;
-        $('pairplayCodeCard').hidden = false;
+        setStatus('gastcode: ' + code + ' (wacht op gast…)', 'busy');
+        showCodes();
 
         /* BUG-010 (v0.4.0-Rusch): hier stond een setTimeout van 10 minuten die
          * teardown() deed als er dan nog geen WebRTC-gast verbonden was. Sinds
@@ -573,7 +592,7 @@ const pairPlay = (() => {
           }
           if (Date.now() - waitStartedAt > GUEST_WAIT_NOTICE_MS) {
             clearInterval(checkJoin);
-            setStatus('code: ' + state.code +
+            setStatus('gastcode: ' + state.code +
               ' (nog geen gast — sessie blijft actief voor telefoon-joysticks)', '');
           }
         }, 2000);
@@ -598,6 +617,8 @@ const pairPlay = (() => {
         setStatus('code moet 6 tekens zijn', 'err');
         return;
       }
+      /* Let op: hier hoort de GASTCODE. Een joystickcode geeft server-side een
+       * nette 400 — die hoort in de telefoon-app, niet in dit veld. */
 
       setStatus('verbinden…', 'busy');
 
@@ -652,7 +673,8 @@ const pairPlay = (() => {
     restore: function() {
       localStorage.removeItem(LS_HOST_KEY);
       localStorage.removeItem(LS_GUEST_KEY);
-      state.mode = null; state.hostToken = null; state.guestToken = null; state.code = null;
+      state.mode = null; state.hostToken = null; state.guestToken = null;
+      state.code = null; state.codeP1 = null; state.codeP2 = null;
     },
 
     // Gast stuurt input naar host

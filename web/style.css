@@ -1,0 +1,134 @@
+/*
+ * style.css — gedeelde stijl van VideopacHorse_Web.
+ * Stond t/m v0.4.2 inline in index.html; sinds v0.5.0 een eigen bestand omdat
+ * de netplay-variant op /videopac/2/ exact dezelfde vormgeving gebruikt en een
+ * tweede kopie gegarandeerd uit de pas zou gaan lopen. Alle kleuren/maten zijn
+ * CSS-variabelen: het configuratiepaneel schrijft ze op :root (DESIGN_TOKENS.md).
+ */
+:root {
+  --accent: #f5a623;
+  --bg: #14151c;
+  --panel-bg: #1e2029;
+  --panel-border: #33364a;
+  --text: #e8e8ef;
+  --text-dim: #9a9db3;
+  --btn-primary: #f5a623;
+  --btn-primary-text: #1a1200;
+  --btn-secondary: #33364a;
+  --btn-danger: #c0392b;
+  --badge-ok: #27ae60;
+  --badge-warn: #f39c12;
+  --badge-err: #c0392b;
+  --canvas-border: #33364a;
+  --canvas-bg: #000000;
+  --kbd-bg: #2a2d3d;
+  --font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-size: 15px;
+  --h1-size: 26px;
+  --container-w: 980px;
+  --card-radius: 10px;
+  --card-pad: 16px;
+  --canvas-scale: 3;
+}
+:root[data-theme="light"] {
+  --bg: #f2f2f6;
+  --panel-bg: #ffffff;
+  --panel-border: #d5d7e2;
+  --text: #23242c;
+  --text-dim: #666a80;
+  --btn-secondary: #e2e4ef;
+  --kbd-bg: #e8eaf2;
+  --canvas-border: #c5c8d8;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--text);
+  font-family: var(--font-family); font-size: var(--font-size);
+}
+.wrap { max-width: var(--container-w); margin: 0 auto; padding: 18px; }
+h1 { font-size: var(--h1-size); margin: 0 0 4px; }
+h1 span { color: var(--accent); }
+.sub { color: var(--text-dim); margin: 0 0 16px; }
+.card {
+  background: var(--panel-bg); border: 1px solid var(--panel-border);
+  border-radius: var(--card-radius); padding: var(--card-pad); margin-bottom: 14px;
+}
+.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+button {
+  font: inherit; border: 0; border-radius: 7px; padding: 8px 16px; cursor: pointer;
+  background: var(--btn-secondary); color: var(--text);
+}
+button.primary { background: var(--btn-primary); color: var(--btn-primary-text); font-weight: 600; }
+button.danger { background: var(--btn-danger); color: #fff; }
+button:disabled { opacity: .45; cursor: default; }
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 99px;
+  font-size: .82em; color: #fff; background: var(--badge-warn);
+}
+.badge.ok { background: var(--badge-ok); }
+.badge.err { background: var(--badge-err); }
+#screen {
+  display: block; margin: 0 auto; image-rendering: pixelated;
+  border: 2px solid var(--canvas-border); border-radius: 6px;
+  background: var(--canvas-bg); max-width: 100%;
+}
+.filerow { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; margin-bottom: 8px; }
+.filerow label { color: var(--text-dim); }
+.games-list { max-height: 340px; overflow-y: auto; margin-top: 10px; }
+.games-list .g {
+  display: grid; grid-template-columns: 52px 1fr auto auto; gap: 8px;
+  align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer;
+}
+.games-list .g:hover { background: var(--kbd-bg); }
+.games-list .g .nr { color: var(--text-dim); }
+.games-list .g .sys { font-size: .78em; color: var(--text-dim); }
+#gamesSearch {
+  font: inherit; background: var(--kbd-bg); color: var(--text);
+  border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px;
+}
+input[type="file"] { color: var(--text-dim); max-width: 100%; }
+.kbd { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 10px; }
+.kbd button { padding: 7px 0; background: var(--kbd-bg); font-size: .85em; }
+details.config summary { cursor: pointer; font-weight: 600; }
+.cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px 18px; margin-top: 12px; }
+.cfg-grid label { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-dim); font-size: .9em; }
+.cfg-grid input[type="color"] { width: 44px; height: 26px; border: 0; padding: 0; background: none; }
+.cfg-grid input[type="range"] { width: 110px; }
+.cfg-grid select { font: inherit; }
+.blestatus { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 8px; }
+.blerow { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: .9em; }
+.help { color: var(--text-dim); font-size: .9em; line-height: 1.5; }
+kbd { background: var(--kbd-bg); border-radius: 4px; padding: 1px 6px; font-size: .85em; }
+footer { color: var(--text-dim); font-size: .85em; margin-top: 18px; }
+a { color: var(--accent); }
+
+/* ---- sessiecodes (v0.5.0: drie codes, elk met een eigen rol) ---- */
+.codegrid { display: grid; gap: 10px; margin: 12px 0; }
+.codebox {
+  display: grid; grid-template-columns: auto 1fr; gap: 2px 16px;
+  align-items: center; padding: 10px 14px;
+  background: var(--kbd-bg); border-radius: 6px;
+}
+/* Code eerst en het grootst: dat is wat je overtikt. Rol en uitleg staan ernaast,
+   zodat je in één oogopslag ziet welke code waarvoor is. */
+.codebox .value {
+  grid-column: 1; grid-row: 1 / span 2;
+  font-size: 1.7em; letter-spacing: 3px;
+  font-weight: 600; font-family: ui-monospace, "Courier New", monospace;
+}
+.codebox .role { grid-column: 2; grid-row: 1; font-weight: 600; }
+.codebox .hint { grid-column: 2; grid-row: 2; color: var(--text-dim); font-size: .85em; }
+@media (max-width: 520px) {
+  .codebox { grid-template-columns: 1fr; }
+  .codebox .value { grid-column: 1; grid-row: 1; }
+  .codebox .role { grid-row: 2; }
+  .codebox .hint { grid-row: 3; }
+}
+.codebox.busy .value { opacity: .4; }
+
+/* ---- netplay-teller (/videopac/2/) ---- */
+.netstats {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 10px;
+  color: var(--text-dim); font-size: .85em;
+}
+.netstats b { color: var(--text); font-weight: 600; }

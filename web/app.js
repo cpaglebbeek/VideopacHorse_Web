@@ -7,7 +7,14 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.4.2';
+const BUILD_V = '0.5.0';
+
+/* Basispad-hooks. De netplay-variant op /videopac/2/ draait DEZE app.js één map
+ * dieper (geen kopie — één bestand, één gedrag). Zonder deze twee variabelen zou
+ * hij daar g7000.wasm, games.json en de API onder /2/ gaan zoeken. De pagina zet
+ * ze vóór het laden van dit script; leeg = de gewone /videopac/-plaatsing. */
+const VPH_BASE = (typeof window !== 'undefined' && window.VPH_BASE) || '';
+const VPH_API = (typeof window !== 'undefined' && window.VPH_API) || 'api/';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
@@ -138,33 +145,22 @@ const S = {
 /* Combineer per speler alle input-bronnen (toetsenbord | gamepad | telefoon-joystick |
  * peer/DataChannel) en geef alleen bij échte verandering door aan de core. Zo wist de
  * 500 ms-heartbeat van een telefoon geen toetsenbord-input en vecht een gamepad niet per
- * frame met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler. */
-function guestOwnsPlayer2() {
-  /* Zodra een pairplay-sessie staat, is de GAST speler 2: lokale bronnen op
-   * slot 2 (WASD, gamepad 2, BLE-telefoon op speler 2) worden gedempt zodat
-   * twee mensen echt tegen elkaar spelen i.p.v. dezelfde stick te delen. */
-  if (typeof pairPlay === 'undefined') return false;
-  const st = pairPlay.getStatus();
-  return st.mode === 'host' && st.connected;
-}
-
+ * frame met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler.
+ *
+ * v0.5.0: ALLE bronnen worden ge-OR'd, ook op speler 2. De uitzondering die hier stond
+ * (gast bezit speler 2 exclusief, telefoon gedempt) is vervallen met de drie codes:
+ * gastcode en joystickcode-P2 zijn nu verschillende sleutels naar dezelfde plek, en de
+ * gebruikerskeuze is dat die elkaar aanvullen in plaats van uitsluiten. Daarmee verdwijnt
+ * ook het randgeval dat in het oude commentaar stond (telefoon die slot 1 pakte vóór de
+ * gast joinde) — er valt niets meer te winnen of te dempen. */
 function pushJoy(p) {
-  if (p === 1 && guestOwnsPlayer2()) {
-    /* Gast bezit speler 2 exclusief: alleen zijn DataChannel-mask telt.
-     * De server geeft slot 1 niet uit zolang sessions.guest_token gevuld is,
-     * dus S.joyCtrl[1] hoort dan 0 te zijn. Eén randgeval blijft over: een
-     * telefoon die slot 1 pakte VÓÓR de gast joinde. Dan wint hier de gast
-     * (zijn slot is exclusief) en wordt de telefoon-invoer genegeerd tot die
-     * telefoon zijn slot vrijgeeft (ctrl-leave of 60 s stilte ⇒ server-GC). */
-    const g = S.joyPeer[1] & 0x1f;
-    if (g === S.joy[1]) return;
-    S.joy[1] = g;
-    if (S.api) S.api.joy(S.sys, 1, g);
-    return;
-  }
   const m = (S.joyKb[p] | S.joyGp[p] | S.joyPeer[p] | S.joyCtrl[p]) & 0x1f;
   if (m === S.joy[p]) return;
   S.joy[p] = m;
+  /* Netplay (/videopac/2/): niet rechtstreeks naar de core. Daar bepaalt de
+   * lockstep wélke input op wélk frame telt — beide kanten moeten exact dezelfde
+   * volgorde zien, dus de netplay-laag plant hem in en voert hem later uit. */
+  if (typeof netplay !== 'undefined' && netplay.active()) { netplay.setLocalJoy(p, m); return; }
   if (S.api) S.api.joy(S.sys, p, m);
 }
 
@@ -184,7 +180,7 @@ async function loadCore() {
     setBadge('verBadge', false, '', 'g7000.js ontbreekt — draai build.sh');
     return;
   }
-  S.mod = await createG7000({ locateFile: f => f + '?v=' + BUILD_V });
+  S.mod = await createG7000({ locateFile: f => VPH_BASE + f + '?v=' + BUILD_V });
   const cw = S.mod.cwrap;
   S.api = {
     create: cw('g7k_create', 'number', []),
@@ -250,6 +246,9 @@ function applyRom(bytes, persist) {
     'ongeldige ROM-grootte');
   if (rc === 0 && persist) idbPut('rom', bytes.buffer.slice(0));
   updateButtons();
+  /* Host wisselt van spel tijdens een netplay-sessie: de gast moet dezelfde
+   * cartridge krijgen en beide machines moeten opnieuw beginnen. */
+  if (rc === 0 && typeof netplay !== 'undefined' && netplay.active()) netplay.onCartChanged();
 }
 function updateButtons() {
   const ready = S.api && S.bios && S.rom;
@@ -306,7 +305,11 @@ function pumpAudio() {
 /* ---------------- frame-loop ---------------- */
 function frame(ts) {
   if (!S.running) return;
-  S.api.runFrame(S.sys);
+  /* Netplay (/videopac/2/) draait de emulatie onder lockstep: het aantal frames
+   * dat NU mag lopen hangt af van de invoer die de tegenpartij al gestuurd heeft,
+   * niet van deze rAF-tick. Zonder netplay is het onveranderd één frame per tick. */
+  if (typeof netplay !== 'undefined' && netplay.active()) netplay.step(ts);
+  else S.api.runFrame(S.sys);
   const ptr = S.api.fb(S.sys);
   const img = new ImageData(
     new Uint8ClampedArray(S.mod.HEAPU8.buffer, ptr, S.fbW * S.fbH * 4), S.fbW, S.fbH);
@@ -315,7 +318,11 @@ function frame(ts) {
   pollGamepads();
   S.frames++;
   if (ts - S.lastFpsT > 1000) {
-    $('fps').textContent = S.frames + ' fps';
+    /* Zonder netplay is één rAF-tick één emulatieframe, dus dan is deze teller de
+     * emulatiesnelheid. Mét netplay kan één tick meerdere frames inhalen; dan zou
+     * dit getal de máchine trager doen lijken dan hij loopt. */
+    const np = (typeof netplay !== 'undefined' && netplay.active()) ? netplay.emuFps() : null;
+    $('fps').textContent = np !== null ? (np + ' fps (emulatie)') : (S.frames + ' fps');
     S.frames = 0; S.lastFpsT = ts;
   }
   S.raf = requestAnimationFrame(frame);
@@ -349,11 +356,11 @@ function handleKey(ev, down) {
   if (k in KEYMAP2) { S.joyKb[1] = down ? S.joyKb[1] | KEYMAP2[k] : S.joyKb[1] & ~KEYMAP2[k]; pushJoy(1); hit = true; }
   if (S.api && !hit && ev.key.length === 1) {
     const code = S.api.keyFromChar(ev.key.toUpperCase().charCodeAt(0));
-    if (code !== 0xFF) { S.api.keySet(S.sys, code, down ? 1 : 0); hit = true; }
+    if (code !== 0xFF) { pushKey(code, down); hit = true; }
   }
   if (S.api && !hit && (ev.key === 'Enter' || ev.key === 'Backspace')) {
     const code = S.api.keyFromChar(ev.key === 'Enter' ? 10 : 8);
-    if (code !== 0xFF) { S.api.keySet(S.sys, code, down ? 1 : 0); hit = true; }
+    if (code !== 0xFF) { pushKey(code, down); hit = true; }
   }
   if (hit) ev.preventDefault();
 }
@@ -407,7 +414,7 @@ function pollGamepads() {
  *     de HTTP-status niet eens gelezen en bleef de laatst bekende mask staan
  *     zolang de storing duurde. */
 
-const CTRL_API = 'api/';
+const CTRL_API = VPH_API;
 const CTRL_POLL_MS = 100;
 /* 3000 ms i.p.v. de 2000 van de oude BLE-watchdog. Onderbouwing: die 2 s gold
  * voor een lokale BLE-link (~10 ms). Nu loopt de heartbeat (500 ms) over
@@ -583,7 +590,17 @@ function buildKbd() {
 function sendChar(ch, down) {
   if (!S.api) return;
   const code = S.api.keyFromChar(ch.charCodeAt(0));
-  if (code !== 0xFF) S.api.keySet(S.sys, code, down ? 1 : 0);
+  if (code !== 0xFF) pushKey(code, down);
+}
+
+/* Console-toets naar de core — één doorgang, zodat netplay ook de TOETSEN kan
+ * synchroniseren. Dat is geen luxe: het spel kiezen gebeurt met het membraan-
+ * toetsenbord, dus zonder deze weg zou de gast in een ander menu belanden dan de
+ * host en meteen uit de pas lopen. */
+function pushKey(code, down) {
+  if (!S.api || code === 0xFF) return;
+  if (typeof netplay !== 'undefined' && netplay.active()) { netplay.setLocalKey(code, down); return; }
+  S.api.keySet(S.sys, code, down ? 1 : 0);
 }
 
 /* ---------------- UI-wiring ---------------- */
@@ -607,9 +624,28 @@ function bindUi() {
     cancelAnimationFrame(S.raf);
     updateButtons();
   };
-  $('btnReset').onclick = () => S.api.reset(S.sys, 0);
-  $('btnColdReset').onclick = () => coldStart();
-  $('chkNtsc').onchange = ev => S.api.setRegion(S.sys, ev.target.checked ? 1 : 0);
+  /* Onder netplay zijn reset en power-cycle geen lokale handelingen meer: ze
+   * moeten bij beide spelers op HETZELFDE frame gebeuren, anders lopen de twee
+   * machines onherstelbaar uiteen. netplay plant ze in en voert ze aan beide
+   * kanten uit; alleen de host mag ze aanvragen. */
+  $('btnReset').onclick = () => {
+    if (typeof netplay !== 'undefined' && netplay.active()) netplay.requestReset(false);
+    else S.api.reset(S.sys, 0);
+  };
+  $('btnColdReset').onclick = () => {
+    if (typeof netplay !== 'undefined' && netplay.active()) netplay.requestReset(true);
+    else coldStart();
+  };
+  $('chkNtsc').onchange = ev => {
+    /* Regio bepaalt de framelengte en dus het hele tijdgedrag van de emulatie.
+     * Tijdens netplay ligt hij vast op wat er bij de handshake is afgesproken. */
+    if (typeof netplay !== 'undefined' && netplay.active()) {
+      ev.target.checked = !ev.target.checked;
+      netplay.notice('Regio wisselen kan niet tijdens netplay — stop de sessie eerst.');
+      return;
+    }
+    S.api.setRegion(S.sys, ev.target.checked ? 1 : 0);
+  };
   $('btnKbd').onclick = () => { const k = $('consoleKbd'); k.hidden = !k.hidden; };
   $('btnFullscreen').onclick = () => $('screen').requestFullscreen && $('screen').requestFullscreen();
 }
@@ -704,7 +740,7 @@ function renderGames(filter) {
 
 async function gamesInit() {
   try {
-    const resp = await fetch('games.json?v=' + BUILD_V);
+    const resp = await fetch(VPH_BASE + 'games.json?v=' + BUILD_V);
     if (!resp.ok) return;                 /* geen catalogus = sectie blijft weg */
     GAMES.cat = await resp.json();
   } catch (e) { return; }

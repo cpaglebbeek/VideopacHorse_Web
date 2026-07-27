@@ -8,7 +8,11 @@
 | App-glue | `web/app.js` | WASM-module laden, frame-loop (requestAnimationFrame), canvas-blit, WebAudio-pump, input-mapping, IndexedDB-opslag |
 | Telefoon-joystick (internet) | `web/app.js` (module `ctrlPad`) | Host pollt `ctrl-poll` zolang hij een pairplay-sessie heeft; slot 0/1 → `S.joyCtrl[0/1]`; dubbele failsafe (`age_ms > 3000` én watchdog op de poll-route zelf) ⇒ mask 0; statusregel `#ctrlStatus` |
 | Engine | `web/g7000.js` + `web/g7000.wasm` | build-artefact uit VideopacHorse_Core (`make wasm`) |
-| Build | `build.sh` | core bouwen + artefacten kopiëren |
+| Stijl | `web/style.css` | gedeeld door beide pagina's; CSS-variabelen zijn het configuratiepaneel (DESIGN_TOKENS.md) |
+| Netplay-pagina | `web/2/index.html` | tweede variant op `/videopac/2/`; hergebruikt `../app.js` en `../g7000.*` via `window.VPH_BASE`/`VPH_API` |
+| Netplay-module | `web/2/netplay.js` | lockstep-emulatie aan beide kanten i.p.v. videostream; levert dezelfde vorm als `pairPlay` zodat app.js ongewijzigd blijft |
+| Build | `build.sh` | core bouwen + artefacten kopiëren + cache-busters van BEIDE pagina's |
+| Tests | `tests/run.sh` | wegwerpserver + API-suite + twee browsersuites (`tests/README.md`) |
 
 ## Data-flow
 
@@ -18,8 +22,73 @@ per rAF-tick `g7k_run_frame` → framebuffer (HEAPU32) → `putImageData`/canvas
 `g7k_joystick_set`/`g7k_key_set`.
 
 Telefoon-joystick: geen Bluetooth meer. De telefoon is een gewone HTTPS-client van
-de pairing-API en koppelt met dezelfde 6-tekens sessiecode als 🎭 Samen spelen; de
-host haalt de maskers op met `ctrl-poll`. Zie "Controller-protocol" hieronder.
+de pairing-API en koppelt met een **joystickcode**; de host haalt de maskers op met
+`ctrl-poll`. Zie "Controller-protocol" hieronder.
+
+## Drie codes per sessie (v0.5.0)
+
+`pair-create` levert er drie, elk voor precies één plek:
+
+| Code | Endpoint | Wie | Max |
+|---|---|---|---|
+| `code` (gastcode) | `pair-join` | medespeler op afstand (WebRTC) — speler 2 | 1 |
+| `ctrl_code_p1` | `ctrl-join` | telefoon op speler 1 | 1 |
+| `ctrl_code_p2` | `ctrl-join` | telefoon op speler 2 | 1 |
+
+De rol zit dus in de code; de server wijst niets meer toe. Daarmee vervalt de
+kruisvalidatie tussen `pair-join` en `ctrl-join` die in v0.4.0 nodig was (BUG-009):
+er valt niets dubbel te bezetten. Wat overblijft is één afspraak, en die is dezelfde
+als voor toetsenbord en gamepad: **bronnen op dezelfde speler worden ge-OR'd.** Gast
+en telefoon-P2 sluiten elkaar niet uit maar tellen op. `guestOwnsPlayer2()` — de
+functie die de gast exclusief maakte — is daarmee verdwenen.
+
+Migratie: sessies uit v0.4.x houden lege joystickcodes en verlopen vanzelf; hun
+telefoons kunnen niet opnieuw koppelen. De DB-migratie is idempotent en draait bij
+het eerste verzoek na de deploy (`PRAGMA table_info` + `ALTER TABLE`).
+
+## Netplay — /videopac/2/ (v0.5.0)
+
+Tweede variant naast 🎭 Samen spelen, met een fundamenteel ander model:
+
+| | `/videopac/` | `/videopac/2/` |
+|---|---|---|
+| Wie emuleert | alleen de host | **beide kanten** |
+| Over de lijn | H.264-videostream + audio (~1-3 Mbit/s) | invoer per frame (~50 byte/s) |
+| Beeld bij de gast | gecomprimeerde video | eigen framebuffer, scherp |
+| Geluid bij de gast | stream van de host | eigen emulatie |
+| Kosten van hapering | beeld schokt/blokt | beeld staat stil tot de invoer er is |
+
+Werking: bij het verbinden stuurt de host een handshake met core-versie, regio en de
+CRC's van BIOS en cartridge. De gast haalt die bestanden **zelf** op (IndexedDB-cache
+of dezelfde archive.org-bron als de GAMES-lijst) — er gaan geen ROM-bytes over de
+lijn, tenzij de host een bestand speelt dat nergens publiek staat; dan biedt hij het
+aan met een expliciete melding in beeld.
+
+Daarna delay-based lockstep: elke kant plant zijn invoer `delay` frames vooruit
+(start 4, past zich aan de gemeten RTT aan, gaat alleen omhoog — omlaag zou invoer
+plannen op een frame dat de ander al draaide). Invoer gaat over een **onbetrouwbaar**
+DataChannel (`ordered:false, maxRetransmits:0`) met de laatste 10 frames als
+redundantie; besturingsverkeer, savestates en hashes over een betrouwbaar kanaal.
+Beide kanten rekenen speler 1 = host-bijdrage en speler 2 = host-bijdrage | gast-
+bijdrage, dus een telefoon op de P2-joystickcode werkt bij de gast net zo goed door.
+
+Onderbrekingen: browsers bevriezen `requestAnimationFrame` in een tabblad dat niet
+zichtbaar is. De emulatie van die kant staat dan stil en de lockstep laat de ander
+netjes meewachten — technisch precies goed, maar zonder uitleg leest een stilstaand
+beeld als een vastloper. Daarom meldt elke kant zijn zichtbaarheid (`away`) en
+verschijnt na 1,5 s wachten "wachten op je medespeler…". Bij terugkeer loopt het door
+zonder resync: niemand is doorgelopen, dus er is niets in te halen.
+
+Framesnelheid: de teller in beeld toont tijdens netplay de gemeten **emulatie**snelheid,
+niet het aantal rAF-ticks. Die twee lopen uiteen omdat één tick meerdere frames mag
+inhalen (tot `MAX_CATCHUP`, met een klem van 100 ms op de accumulator). Gemeten op HC55
+met twee losse browsers: 44-49 van de 50 PAL-frames per seconde.
+
+Desync-bewaking: elke 60 frames hasht elke kant zijn volledige savestate (FNV-1a).
+De gast stuurt die naar de host; bij verschil stuurt de host zijn savestate terug en
+zet de gast zichzelf bij. Bewijs dat het model klopt: `VideopacHorse_Core` heeft
+`make netcheck` (`tools/g7k_netplay_check.c`) — determinisme, detectie én herstel,
+getest via dezelfde API-aanroepen die de frontend doet.
 
 **Verwijderd in v0.4.0-Rusch:** de Web-Bluetooth-route (`bleJoy`, knop
 `#btnBleJoy`, statusblok `#bleStatus`, service `7a0b1000-…`). De tegenhanger

@@ -4,104 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>VideopacHorse — Philips Videopac G7000 emulator</title>
-<style>
-:root {
-  --accent: #f5a623;
-  --bg: #14151c;
-  --panel-bg: #1e2029;
-  --panel-border: #33364a;
-  --text: #e8e8ef;
-  --text-dim: #9a9db3;
-  --btn-primary: #f5a623;
-  --btn-primary-text: #1a1200;
-  --btn-secondary: #33364a;
-  --btn-danger: #c0392b;
-  --badge-ok: #27ae60;
-  --badge-warn: #f39c12;
-  --badge-err: #c0392b;
-  --canvas-border: #33364a;
-  --canvas-bg: #000000;
-  --kbd-bg: #2a2d3d;
-  --font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-size: 15px;
-  --h1-size: 26px;
-  --container-w: 980px;
-  --card-radius: 10px;
-  --card-pad: 16px;
-  --canvas-scale: 3;
-}
-:root[data-theme="light"] {
-  --bg: #f2f2f6;
-  --panel-bg: #ffffff;
-  --panel-border: #d5d7e2;
-  --text: #23242c;
-  --text-dim: #666a80;
-  --btn-secondary: #e2e4ef;
-  --kbd-bg: #e8eaf2;
-  --canvas-border: #c5c8d8;
-}
-* { box-sizing: border-box; }
-body {
-  margin: 0; background: var(--bg); color: var(--text);
-  font-family: var(--font-family); font-size: var(--font-size);
-}
-.wrap { max-width: var(--container-w); margin: 0 auto; padding: 18px; }
-h1 { font-size: var(--h1-size); margin: 0 0 4px; }
-h1 span { color: var(--accent); }
-.sub { color: var(--text-dim); margin: 0 0 16px; }
-.card {
-  background: var(--panel-bg); border: 1px solid var(--panel-border);
-  border-radius: var(--card-radius); padding: var(--card-pad); margin-bottom: 14px;
-}
-.row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-button {
-  font: inherit; border: 0; border-radius: 7px; padding: 8px 16px; cursor: pointer;
-  background: var(--btn-secondary); color: var(--text);
-}
-button.primary { background: var(--btn-primary); color: var(--btn-primary-text); font-weight: 600; }
-button.danger { background: var(--btn-danger); color: #fff; }
-button:disabled { opacity: .45; cursor: default; }
-.badge {
-  display: inline-block; padding: 2px 10px; border-radius: 99px;
-  font-size: .82em; color: #fff; background: var(--badge-warn);
-}
-.badge.ok { background: var(--badge-ok); }
-.badge.err { background: var(--badge-err); }
-#screen {
-  display: block; margin: 0 auto; image-rendering: pixelated;
-  border: 2px solid var(--canvas-border); border-radius: 6px;
-  background: var(--canvas-bg); max-width: 100%;
-}
-.filerow { display: grid; grid-template-columns: 110px 1fr auto; gap: 10px; align-items: center; margin-bottom: 8px; }
-.filerow label { color: var(--text-dim); }
-.games-list { max-height: 340px; overflow-y: auto; margin-top: 10px; }
-.games-list .g {
-  display: grid; grid-template-columns: 52px 1fr auto auto; gap: 8px;
-  align-items: center; padding: 5px 8px; border-radius: 6px; cursor: pointer;
-}
-.games-list .g:hover { background: var(--kbd-bg); }
-.games-list .g .nr { color: var(--text-dim); }
-.games-list .g .sys { font-size: .78em; color: var(--text-dim); }
-#gamesSearch {
-  font: inherit; background: var(--kbd-bg); color: var(--text);
-  border: 1px solid var(--panel-border); border-radius: 6px; padding: 6px 10px;
-}
-input[type="file"] { color: var(--text-dim); max-width: 100%; }
-.kbd { display: grid; grid-template-columns: repeat(12, 1fr); gap: 5px; margin-top: 10px; }
-.kbd button { padding: 7px 0; background: var(--kbd-bg); font-size: .85em; }
-details.config summary { cursor: pointer; font-weight: 600; }
-.cfg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(215px, 1fr)); gap: 10px 18px; margin-top: 12px; }
-.cfg-grid label { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: var(--text-dim); font-size: .9em; }
-.cfg-grid input[type="color"] { width: 44px; height: 26px; border: 0; padding: 0; background: none; }
-.cfg-grid input[type="range"] { width: 110px; }
-.cfg-grid select { font: inherit; }
-.blestatus { display: flex; flex-direction: column; gap: 6px; align-items: center; margin-top: 8px; }
-.blerow { display: flex; gap: 8px; align-items: center; color: var(--text-dim); font-size: .9em; }
-.help { color: var(--text-dim); font-size: .9em; line-height: 1.5; }
-kbd { background: var(--kbd-bg); border-radius: 4px; padding: 1px 6px; font-size: .85em; }
-footer { color: var(--text-dim); font-size: .85em; margin-top: 18px; }
-a { color: var(--accent); }
-</style>
+<link rel="stylesheet" href="style.css?v=0.5.0">
 </head>
 <body>
 <div class="wrap">
@@ -123,7 +26,7 @@ a { color: var(--accent); }
       <button id="btnKbd">⌨ Console-toetsenbord</button>
       <button id="btnFullscreen">⛶ Volledig scherm</button>
     </div>
-    <!-- telefoon-joysticks: gekoppeld met de sessiecode uit 🎭 Samen spelen (ctrl-poll) -->
+    <!-- telefoon-joysticks: elk gekoppeld met de joystickcode van hun eigen speler (ctrl-poll) -->
     <div id="ctrlStatus" class="blestatus" hidden></div>
   </div>
 
@@ -147,8 +50,8 @@ a { color: var(--accent); }
     Besturing: speler 1 <kbd>pijltjes</kbd> + <kbd>spatie</kbd>, speler 2 <kbd>WASD</kbd> + <kbd>F</kbd>,
     console-toetsen: gewoon typen of het schermtoetsenbord. Gamepads worden ondersteund.
     <strong>Telefoon als joystick:</strong> start hieronder een sessie, open de app
-    <em>VideopacHorse Joystick</em> op je Android-telefoon en tik de 6-tekens code over.
-    Geen Bluetooth, geen koppelen in Android — alleen die code (max 2 telefoons per sessie,
+    <em>VideopacHorse Joystick</em> op je Android-telefoon en tik de <strong>joystickcode</strong> over van de speler die je wilt zijn.
+    Geen Bluetooth, geen koppelen in Android — alleen die code (één telefoon per speler,
     werkt in elke browser).</p>
   </div>
 
@@ -157,11 +60,26 @@ a { color: var(--accent); }
       <strong>🎭 Samen spelen</strong>
       <span id="pairplayStatus" class="badge"></span>
     </div>
-    <div id="pairplayCodeCard" hidden style="margin: 12px 0; padding: 12px; background: var(--kbd-bg); border-radius: 6px; text-align: center;">
-      <p class="help">Deel deze code met je medespeler:</p>
-      <p style="font-size: 2em; letter-spacing: 4px; font-weight: 600; margin: 8px 0;" id="pairplayCode">------</p>
-      <p class="help">(Blijft geldig zolang de sessie loopt — dezelfde code koppelt de
-      telefoon-joystick-app. Stop je de sessie, dan vervalt de code meteen.)</p>
+    <div id="pairplayCodeCard" hidden>
+      <div class="codegrid">
+        <div class="codebox">
+          <span class="role">🎭 Gastcode</span>
+          <span class="value" id="pairplayCode">------</span>
+          <span class="hint">voor je medespeler op afstand — hij wordt speler 2</span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 1</span>
+          <span class="value" id="pairplayCodeP1">------</span>
+          <span class="hint">voor één telefoon met de app <em>VideopacHorse Joystick</em></span>
+        </div>
+        <div class="codebox">
+          <span class="role">🎮 Joystickcode speler 2</span>
+          <span class="value" id="pairplayCodeP2">------</span>
+          <span class="hint">voor één telefoon; werkt samen met de gast op speler 2</span>
+        </div>
+      </div>
+      <p class="help">Elke code hoort bij precies één plek — je kunt ze niet omwisselen.
+      Ze blijven geldig zolang de sessie loopt; stop je de sessie, dan vervallen ze alle drie.</p>
     </div>
     <div class="row">
       <button id="pairplayBtnStart" class="primary">🎮 Start sessie (host)</button>
@@ -174,9 +92,13 @@ a { color: var(--accent); }
     <p class="help">Start een sessie als host (je draait de emulator en streamt het scherm) of join als gast
     (je ziet de stream van de host en stuurt je input als speler 2). De WebRTC-verbinding is P2P over
     LAN of internet; de server ziet alleen handshake-metadata. Audio: gast hoort de host-PC-output.
-    Dezelfde code koppelt <strong>telefoon-joysticks</strong> (Android-app) — samen maximaal 2 spelers:
-    een gast <em>is</em> speler 2, dus dan is er nog plek voor één telefoon op speler 1.
-    De sessie blijft actief tot je op ⏹ Stop sessie drukt, ook zonder gast.</p>
+    Een sessie geeft <strong>drie codes</strong>: één voor de gast en één per joystickplek. Gast en
+    telefoon op speler 2 sluiten elkaar niet uit — hun invoer wordt bij elkaar opgeteld, net als
+    toetsenbord en gamepad. De sessie blijft actief tot je op ⏹ Stop sessie drukt, ook zonder gast.</p>
+    <p class="help">🧪 <strong>Nieuw: <a href="2/">netplay-variant op /videopac/2/</a></strong> — daar
+    gaat er geen beeld meer over de lijn. Host en gast draaien allebei dezelfde emulatie en wisselen
+    alleen invoer uit (± 50 byte/s), dus de gast krijgt een scherp beeld en het geluid van zijn eigen
+    machine in plaats van een videostream.</p>
   </div>
 
   <div class="card" id="gamesCard" hidden>
@@ -245,9 +167,9 @@ a { color: var(--accent); }
     100% from-scratch engine, geen ROMs op deze server.
   </footer>
 </div>
-<script src="g7000.js?v=0.4.2"></script>
-<script src="pairplay.js?v=0.4.2"></script>
-<script src="app.js?v=0.4.2"></script>
+<script src="g7000.js?v=0.5.0"></script>
+<script src="pairplay.js?v=0.5.0"></script>
+<script src="app.js?v=0.5.0"></script>
 <script>
 /* UI wiring voor 🎭 Samen spelen */
 (function(){

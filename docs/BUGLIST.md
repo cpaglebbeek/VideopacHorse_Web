@@ -228,6 +228,52 @@ Conventie: kleurcode (Groen fysiek / Geel logisch / Rood conceptueel) + RCA op d
 5. **Failsafe alleen op de bron** (BUG-011) — bij een netwerkprotocol hoort naast "de bron
    is stil" ook "de route is stuk"; anders bevriest de laatste waarde precies bij storing.
 
+## BUG-012 — Gast kon niet meedoen zodra er twee telefoons hingen (Rood, closed 2026-07-27)
+
+- **Symptoom:** met twee gekoppelde telefoon-joysticks gaf `pair-join` 409 "speler 2 is
+  bezet door een telefoon-joystick"; de gast stond buiten en moest wachten tot iemand
+  zijn telefoon losmaakte.
+- **RCA functioneel:** één code voor drie rollen. Wie hem intikte, bepaalde niet wát hij
+  werd — dat besliste de server, op volgorde van binnenkomst.
+- **RCA technisch:** `ctrl-join` zocht het laagste vrije slot en telde de gast mee als
+  speler 2; `pair-join` moest daar spiegelbeeldig naar kijken (de BUG-009-fix). Twee
+  endpoints die elkaars boekhouding moesten kennen — elke uitbreiding brak die weer.
+- **RCA architectonisch:** de schaarste was kunstmatig. De console heeft twee poorten, maar
+  niets dwingt af dat maar één bron per poort mag sturen; toetsenbord en gamepad deelden er
+  al één zonder enig probleem (`pushJoy` OR't ze).
+- **Fix (v0.5.0):** drie codes per sessie — gastcode, joystickcode P1, joystickcode P2. De
+  rol volgt uit de code, dus de server wijst niets meer toe en de kruisvalidatie tussen de
+  twee endpoints is vervallen. Gast en telefoon-P2 worden ge-OR'd, net als alle andere
+  bronnen; `guestOwnsPlayer2()` is verwijderd.
+- **Preventie:** als twee endpoints elkaars capaciteit moeten bewaken, is de sleutel te grof.
+  Geef elke rol een eigen sleutel voordat je de bewaking uitbreidt.
+
+## BUG-013 — Versie van de joystick-app liep stil uit de pas (Groen, closed 2026-07-27)
+
+- **Symptoom:** `app/build.gradle.kts` bouwde `0.4.0-Rusch` terwijl de repo op `0.4.2-Magnavox`
+  stond. Een APK zei dus iets anders dan de release waar hij bij hoorde.
+- **RCA functioneel:** bij een klacht is de eerste vraag "welke versie draai je" — en dat
+  antwoord was fout.
+- **RCA technisch:** de versie stond hardcoded in het buildbestand, náást `version.json`.
+- **RCA architectonisch:** lock-step is een familieafspraak, maar één repo las hem niet.
+- **Fix:** `build.gradle.kts` leest `version.json` (`JsonSlurper`) en faalt als het veld mist.
+- **Preventie:** een lock-step-versie hoort nergens tweemaal te staan; een tweede plek is
+  geen kopie maar een toekomstig verschil.
+
+## Bevindingen uit de testronde v0.5.0 (geen bugs in de app)
+
+- **`test_M7_real_rom_vp01pl` stond sinds de start op SKIP.** Zonder `G7K_ROMDIR` slaat de
+  test zichzelf stil over, en dat was altijd zo — de suite meldde 85 pass, 1 skip en zag er
+  groen uit. Met de juiste ROM erbij (Videopac nr 1 "plus", 8 KB, CRC `EE3EE642`) draait hij
+  wél: 86/86. Aandachtspunt voor later: de test geeft FAIL zowel bij een kapotte emulator als
+  bij een verkeerd bestand met de juiste naam — die twee horen te verschillen.
+- **Twee lege canvassen zijn ook "gelijk".** De eerste versie van `netplay_e2e.py` zei groen
+  op twee stilstaande emulators. De test eist nu eerst beweging vóór hij gelijkheid als bewijs
+  aanvaardt.
+- **Gelijk op de klok is niet gelijk in de emulatie.** Host en gast lopen frames uit elkaar;
+  hun canvassen op hetzelfde moment vergelijken geeft valse alarmen. De juiste maat is de
+  state-hash bij hetzelfde framenummer.
+
 ## Afgewogen en niet gefixt (bewust)
 
 - **Code = bearer-credential (4 uur).** `sessions.code` blijft sinds v0.4.0 geldig omdat
