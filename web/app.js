@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.4.1';
+const BUILD_V = '0.4.2';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';

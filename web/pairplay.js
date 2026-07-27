@@ -646,28 +646,13 @@ const pairPlay = (() => {
      * gebruiker moest dan "Start sessie" drukken, kreeg een NIEUWE code en
      * moest alle telefoons opnieuw koppelen. De opgeslagen sessie werd wél
      * weggeschreven maar nooit teruggelezen (dode code). */
+    /* Verse pagina = verse sessie (gebruikerswens 27-07): een herlaadbeurt
+     * hervat NIETS meer. De oude sessie wordt lokaal vergeten; de host start
+     * gewoon een nieuwe met een nieuwe code. */
     restore: function() {
-      if (state.mode) return false;
-      const sess = loadHostSession();
-      /* Marge van 60 s: een sessie die zo meteen verloopt is niets waard. */
-      if (!sess || !sess.code || !((sess.expiresAt | 0) > (Date.now() / 1000) + 60)) {
-        clearHostSession();
-        return false;
-      }
-      state.mode = 'host';
-      state.hostToken = sess.hostToken;
-      state.code = sess.code;
-      state.expiresAt = sess.expiresAt | 0;
-
-      createPeerConnection(false);
-      setupCanvasCapture();
-      startSignalPoll();
-
-      $('pairplayCode').textContent = sess.code;
-      $('pairplayCodeCard').hidden = false;
-      setStatus('sessie hervat — code: ' + sess.code +
-        ' (telefoon-joysticks blijven gekoppeld)', 'ok');
-      return true;
+      localStorage.removeItem(LS_HOST_KEY);
+      localStorage.removeItem(LS_GUEST_KEY);
+      state.mode = null; state.hostToken = null; state.guestToken = null; state.code = null;
     },
 
     // Gast stuurt input naar host
