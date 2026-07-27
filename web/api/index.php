@@ -66,7 +66,8 @@ function db(): PDO {
     $pdo = new PDO('sqlite:' . DB_PATH);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     $pdo->exec('PRAGMA journal_mode=WAL');
-    $pdo->exec('PRAGMA busy_timeout=3000');
+    $pdo->exec('PRAGMA busy_timeout=10000');
+    $pdo->exec('PRAGMA synchronous=NORMAL');
 
     // Schema: idempotent
     $pdo->exec("
@@ -90,6 +91,8 @@ function db(): PDO {
             ts_ms           INTEGER NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_rtc_target ON rtc_signals(target_token, id);
+
+        CREATE TABLE IF NOT EXISTS meta(k TEXT PRIMARY KEY, v INTEGER);
     ");
 
     @chmod(DB_PATH, 0600);
@@ -98,6 +101,17 @@ function db(): PDO {
 
 function gc(): void {
     $now = time();
+    /* BUG-007: GC deed 2 DELETE's bij ELK verzoek; met twee peers die elke
+     * 500 ms pollen gaf dat permanente write-locks ("database is locked").
+     * Nu hoogstens eens per 60 s, bijgehouden in een meta-tabel. */
+    $st = db()->prepare('SELECT v FROM meta WHERE k=?');
+    $st->execute(['last_gc']);
+    $last = (int)($st->fetchColumn() ?: 0);
+    if ($now - $last < 60) {
+        return;
+    }
+    db()->prepare('INSERT INTO meta(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v')
+        ->execute(['last_gc', $now]);
     // Verwijder verlopen sessies
     db()->prepare('DELETE FROM sessions WHERE expires_at < ?')->execute([$now]);
     // Verwijder signals waarvan target/sender niet meer leeft
@@ -147,6 +161,28 @@ function inputJson(): array {
     return $d;
 }
 
+/* Schrijfacties opnieuw proberen bij SQLITE_BUSY. WAL laat één schrijver toe;
+ * onder twee pollers (2 Hz) + ICE-bursts botsen verzoeken af en toe en blijkt
+ * PRAGMA busy_timeout in PHP-FPM niet altijd te wachten (BUG-007). Bounded:
+ * 25 pogingen x ~40 ms = max ~1 s, daarna nette 503 i.p.v. fatale fout. */
+function withRetry(callable $fn) {
+    $last = null;
+    for ($i = 0; $i < 25; $i++) {
+        try {
+            return $fn();
+        } catch (PDOException $e) {
+            $msg = $e->getMessage();
+            if (stripos($msg, 'locked') === false && stripos($msg, 'busy') === false) {
+                throw $e;
+            }
+            $last = $e;
+            usleep(40000);
+        }
+    }
+    fail('database bezet, probeer opnieuw', 503);
+    throw $last;
+}
+
 function requireSessionByToken(?string $token): array {
     if (!is_string($token) || !preg_match('/^[a-f0-9]{48}$/', $token)) {
         fail('ongeldig token', 401);
@@ -177,8 +213,11 @@ case 'pair-create': {
     $now = time();
     $expiresAt = $now + (TTL_SESSION_HOURS * 3600);
 
-    db()->prepare('INSERT INTO sessions(token, code, host_token, created_at, expires_at) VALUES(?,?,?,?,?)')
-        ->execute([$hostToken, $code, $hostToken, $now, $expiresAt]);
+    withRetry(function () use ($hostToken, $code, $now, $expiresAt) {
+        db()->prepare('INSERT INTO sessions(token, code, host_token, created_at, expires_at) VALUES(?,?,?,?,?)')
+            ->execute([$hostToken, $code, $hostToken, $now, $expiresAt]);
+        return true;
+    });
 
     ok([
         'code' => $code,
@@ -208,8 +247,11 @@ case 'pair-join': {
 
     // Creëer guest-sessie met dezelfde TTL
     $guestToken = newToken();
-    db()->prepare('UPDATE sessions SET guest_token=?, code=NULL WHERE token=?')
-        ->execute([$guestToken, $sess['token']]);
+    withRetry(function () use ($guestToken, $sess) {
+        db()->prepare('UPDATE sessions SET guest_token=?, code=NULL WHERE token=?')
+            ->execute([$guestToken, $sess['token']]);
+        return true;
+    });
 
     ok([
         'guest_token' => $guestToken,
@@ -251,8 +293,11 @@ case 'rtc-signal-send': {
 
     $now = time();
     $nowMs = (int)($now * 1000);
-    db()->prepare('INSERT INTO rtc_signals(sender_token, target_token, type, payload, ts_ms) VALUES(?,?,?,?,?)')
-        ->execute([$token, $targetToken, $type, $payload, $nowMs]);
+    withRetry(function () use ($token, $targetToken, $type, $payload, $nowMs) {
+        db()->prepare('INSERT INTO rtc_signals(sender_token, target_token, type, payload, ts_ms) VALUES(?,?,?,?,?)')
+            ->execute([$token, $targetToken, $type, $payload, $nowMs]);
+        return true;
+    });
 
     ok(['ok' => true]);
 }
@@ -263,19 +308,35 @@ case 'rtc-signal-poll': {
 
     $sess = requireSessionByToken($token);
 
-    $st = db()->prepare('SELECT id, type, payload FROM rtc_signals WHERE target_token=? ORDER BY id ASC');
-    $st->execute([$token]);
-    $signals = $st->fetchAll(PDO::FETCH_ASSOC);
+    /* poll-and-delete in ÉÉN transactie met ÉÉN delete (BUG-007) */
+    /* BEGIN IMMEDIATE: schrijfslot meteen nemen. Met een gewone (deferred)
+     * transactie upgradet SQLite pas bij de DELETE van lees- naar schrijfslot;
+     * twee gelijktijdige pollers geven dan direct "database is locked" en
+     * busy_timeout kan die upgrade niet afwachten (BUG-007). */
+    $result = withRetry(function () use ($token) {
+    db()->exec('BEGIN IMMEDIATE');
+    try {
+        $st = db()->prepare('SELECT id, type, payload FROM rtc_signals WHERE target_token=? ORDER BY id ASC');
+        $st->execute([$token]);
+        $signals = $st->fetchAll(PDO::FETCH_ASSOC);
 
-    $result = [];
-    foreach ($signals as $sig) {
-        $result[] = [
-            'type' => $sig['type'],
-            'payload' => $sig['payload'],
-        ];
-        // Delete after reading
-        db()->prepare('DELETE FROM rtc_signals WHERE id=?')->execute([(int)$sig['id']]);
+        $result = [];
+        $maxId = 0;
+        foreach ($signals as $sig) {
+            $result[] = ['type' => $sig['type'], 'payload' => $sig['payload']];
+            $maxId = max($maxId, (int)$sig['id']);
+        }
+        if ($maxId > 0) {
+            db()->prepare('DELETE FROM rtc_signals WHERE target_token=? AND id<=?')
+                ->execute([$token, $maxId]);
+        }
+        db()->exec('COMMIT');
+        return $result;
+    } catch (Throwable $e) {
+        try { db()->exec('ROLLBACK'); } catch (Throwable $e2) { }
+        throw $e;
     }
+    });
 
     ok(['signals' => $result]);
 }

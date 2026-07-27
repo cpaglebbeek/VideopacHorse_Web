@@ -46,6 +46,11 @@ loopt via een `WeakMap` — geen listener- of geheugenlek bij reconnects.
 | WebRTC-module | `web/pairplay.js` | Host: `canvas.captureStream(50)` + WebAudio-tap (`createMediaStreamDestination` naast de speaker-route) + DataChannel "input"; gast: fullscreen `<video>` + input → DataChannel. STUN-only (Google), ICE-trickle met queue, bye/disconnect → failsafe mask 0. |
 | Input-route | `web/app.js` | Gast-input (WASD/gamepad/BLE) gaat via DataChannel; host ontvangt in `S.joyPeer[1]` en OR-t mee in `pushJoy` (zelfde compositing als bleJoy — bronnen overschrijven elkaar nooit). |
 
+Bij verbinden (v0.3.1): de host doet automatisch een **power-cycle** en start de emulator,
+zodat beide spelers bij hetzelfde beginscherm beginnen; zolang de sessie staat is **speler 2
+exclusief van de gast** (`guestOwnsPlayer2()` dempt lokale WASD/gamepad-2/BLE-slot-2 op de
+host) en de gast mag zowel WASD als de pijltjes gebruiken.
+
 Beperkingen (bewust, gedocumenteerd): STUN-only (geen TURN — corporate NAT kan falen); gast-invoer is altijd speler 2; er gaat nooit ROM/BIOS over de lijn, alleen beeld/geluid/input.
 
 ## Ontwerpbeslissingen

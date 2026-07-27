@@ -7,7 +7,7 @@
 
 /* Build-versie — build.sh houdt dit gelijk aan version.json; wordt als
  * ?v=-cache-buster aan g7000.wasm gehangen (proxy's cachen 'm immutable). */
-const BUILD_V = '0.3.0';
+const BUILD_V = '0.3.1';
 
 /* ---------------- config-paneel ---------------- */
 const CFG_KEY = 'videopachorse.cfg.v1';
@@ -137,7 +137,23 @@ const S = {
  * en geef alleen bij échte verandering door aan de core. Zo wist een
  * BLE-heartbeat geen toetsenbord-input en vecht een gamepad niet per frame
  * met de telefoon. Peer-input (joyPeer) komt via WebRTC DataChannel van medespeler. */
+function guestOwnsPlayer2() {
+  /* Zodra een pairplay-sessie staat, is de GAST speler 2: lokale bronnen op
+   * slot 2 (WASD, gamepad 2, BLE-telefoon op speler 2) worden gedempt zodat
+   * twee mensen echt tegen elkaar spelen i.p.v. dezelfde stick te delen. */
+  if (typeof pairPlay === 'undefined') return false;
+  const st = pairPlay.getStatus();
+  return st.mode === 'host' && st.connected;
+}
+
 function pushJoy(p) {
+  if (p === 1 && guestOwnsPlayer2()) {
+    const g = S.joyPeer[1] & 0x1f;
+    if (g === S.joy[1]) return;
+    S.joy[1] = g;
+    if (S.api) S.api.joy(S.sys, 1, g);
+    return;
+  }
   const m = (S.joyKb[p] | S.joyGp[p] | S.joyBle[p] | S.joyPeer[p]) & 0x1f;
   if (m === S.joy[p]) return;
   S.joy[p] = m;
@@ -231,6 +247,24 @@ function updateButtons() {
   $('btnColdReset').disabled = !ready;
 }
 
+/* Power-cycle + (indien nodig) de emulator laten lopen. Wordt ook automatisch
+ * aangeroepen zodra een "Samen spelen"-sessie tot stand komt, zodat beide
+ * spelers bij hetzelfde beginscherm starten. */
+function coldStart() {
+  if (!S.api) return;
+  S.api.reset(S.sys, 1);
+  if (S.bios) applyBios(S.bios, false);
+  if (S.rom) applyRom(S.rom, false);
+  S.joyKb = [0, 0]; S.joyGp = [0, 0]; S.joyBle = [0, 0]; S.joyPeer = [0, 0];
+  pushJoy(0); pushJoy(1);
+  if (!S.running && S.bios && S.rom) $('btnStart').click();
+}
+
+/* Hook voor pairplay.js: sessie staat → schone start voor twee spelers. */
+function onPairSessionReady() {
+  coldStart();
+}
+
 /* ---------------- audio ---------------- */
 function audioStart() {
   if (S.audioCtx) { S.audioCtx.resume(); return; }
@@ -286,8 +320,9 @@ function handleKey(ev, down) {
   let hit = false;
 
   // Gast-mode: KEYMAP2-input (speler 2) gaat via DataChannel naar host, niet lokaal
-  if (typeof pairPlay !== 'undefined' && pairPlay.getStatus().mode === 'guest' && k in KEYMAP2) {
-    const mask = KEYMAP2[k];
+  if (typeof pairPlay !== 'undefined' && pairPlay.getStatus().mode === 'guest' &&
+      (k in KEYMAP2 || k in KEYMAP1)) {
+    const mask = (k in KEYMAP2) ? KEYMAP2[k] : KEYMAP1[k];   /* gast: WASD én pijltjes */
     if (down) {
       S.joyKb[1] |= mask;
     } else {
@@ -609,11 +644,7 @@ function bindUi() {
     updateButtons();
   };
   $('btnReset').onclick = () => S.api.reset(S.sys, 0);
-  $('btnColdReset').onclick = () => {
-    S.api.reset(S.sys, 1);
-    if (S.bios) applyBios(S.bios, false);
-    if (S.rom) applyRom(S.rom, false);
-  };
+  $('btnColdReset').onclick = () => coldStart();
   $('chkNtsc').onchange = ev => S.api.setRegion(S.sys, ev.target.checked ? 1 : 0);
   $('btnKbd').onclick = () => { const k = $('consoleKbd'); k.hidden = !k.hidden; };
   $('btnFullscreen').onclick = () => $('screen').requestFullscreen && $('screen').requestFullscreen();

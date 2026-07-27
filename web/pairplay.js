@@ -36,6 +36,7 @@ const pairPlay = (() => {
     dataChannel: null,    // For guest input → host
     pollTimer: null,
     offerSent: false,
+    readyFired: false,
     pendingICE: [],
     status: 'stopped',
   };
@@ -124,6 +125,7 @@ const pairPlay = (() => {
     state.pc = new RTCPeerConnection(RTC_CONFIG);
     state.pendingICE = [];
     state.offerSent = false;
+    state.readyFired = false;
 
     // ICE candidate → signal send
     state.pc.onicecandidate = ev => {
@@ -175,7 +177,17 @@ const pairPlay = (() => {
         setStatus('verbinding verbroken', 'err');
         teardown();
       } else if (st === 'connected') {
-        setStatus('peer connected (P2P actief)', 'ok');
+        if (state.mode === 'host') {
+          setStatus('gast verbonden — gast is speler 2', 'ok');
+          /* Schone start voor beide spelers zodra de sessie staat. */
+          if (!state.readyFired && typeof onPairSessionReady === 'function') {
+            state.readyFired = true;
+            setTimeout(() => { try { onPairSessionReady(); } catch (e) { console.warn(e); } }, 300);
+          }
+        } else {
+          setStatus('verbonden — jij bent speler 2 (WASD of pijltjes)', 'ok');
+          state.readyFired = true;
+        }
       }
     };
 
@@ -434,7 +446,7 @@ const pairPlay = (() => {
             // Interim: vertrouw op RTCPeerConnection.connectionStateChange
             if (state.pc && state.pc.connectionState === 'connected') {
               clearInterval(checkJoin);
-              setStatus('gast verbonden!', 'ok');
+              setStatus('gast verbonden — gast is speler 2', 'ok');
             }
           } catch (e) { }
         }, 2000);

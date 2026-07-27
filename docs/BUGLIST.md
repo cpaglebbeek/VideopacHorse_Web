@@ -57,8 +57,30 @@ Conventie: kleurcode (Groen fysiek / Geel logisch / Rood conceptueel) + RCA op d
   werden alleen gelogd; verbinding kwam alleen tot stand dankzij latere kandidaten.
 - **Fix:** kandidaten queuen in `pendingICE` en flushen na `setRemoteDescription`.
 
+## BUG-007 — "database is locked" tijdens pairen (Geel, closed 2026-07-27)
+
+- **Symptoom:** willekeurige HTTP 500's op `/videopac/api/`; gast bleef hangen op
+  "wacht op answer van host…".
+- **RCA functioneel:** sessies kwamen soms niet tot stand.
+- **RCA technisch:** drie oorzaken bovenop elkaar — (1) GC draaide twee DELETE's bij
+  *elk* verzoek terwijl beide peers 2×/s pollen; (2) `CREATE TABLE IF NOT EXISTS meta`
+  stond in de GC en nam per verzoek een schrijfslot; (3) poll-and-delete draaide in een
+  *deferred* transactie die pas bij de DELETE moest upgraden van lees- naar schrijfslot —
+  precies het geval waarin `PRAGMA busy_timeout` niet kan wachten.
+- **RCA architectonisch:** een polling-protocol op SQLite is schrijf-intensief; dat was
+  niet in het ontwerp meegewogen (het clipboard-bouwblok heeft minder verkeer).
+- **Fix:** GC hoogstens 1×/60 s (marker in `meta`), meta-tabel naar het eenmalige schema,
+  `BEGIN IMMEDIATE` voor poll-and-delete (één DELETE i.p.v. per rij), `busy_timeout=10000`
+  + `synchronous=NORMAL`, en een `withRetry()`-helper (25×40 ms) om alle schrijfacties;
+  bij aanhoudende druk een nette 503 in plaats van een fatale fout.
+- **Bewijs:** 90 parallelle API-calls → 0 fatale fouten (was 6 op 60).
+- **Preventie:** bij poll-gebaseerde protocollen op SQLite altijd `BEGIN IMMEDIATE`,
+  getrottelde GC en een retry-helper; stresstest vóór livegang.
+
 ## Terugkerende patronen
 
 1. **Rol-asymmetrie in gedeelde tabellen** (BUG-003/003b/004) — host en gast delen één
    sessierij; elke query moet expliciet zeggen welke rol hij bedoelt.
 2. **Artefact bereikt de gebruiker niet** (BUG-002) — content-versioning boven cache-headers.
+3. **Schrijfdruk op SQLite** (BUG-007) — pollen vermenigvuldigt writes; throttle GC,
+   neem schrijfsloten direct en maak schrijfacties herhaalbaar.
