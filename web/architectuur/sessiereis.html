@@ -1,0 +1,1279 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architectuurplaat AP-01 — Sessie-reis VideopacHorse-ecosysteem</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1:#fcfcfb; --page:#f9f9f7;
+    --ink-1:#0b0b0b; --ink-2:#52514e; --ink-3:#898781;
+    --grid:#e1e0d9; --border:rgba(11,11,11,0.10);
+    --meta:#7a5cc4; --core:#c4442e; --web:#2a78d6; --android:#1baf7a;
+    --deck:#0e8f99; --joy:#d98014; --extern:#898781;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+    --goodtxt:#006300;
+    --seq250:#86b6ef; --seq400:#3987e5; --seq550:#1c5cab; --seq650:#104281;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --surface-1:#1a1a19; --page:#0d0d0d;
+      --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+      --grid:#2c2c2a; --border:rgba(255,255,255,0.12);
+      --meta:#9b7fe0; --core:#e2604a; --web:#3987e5; --android:#199e70;
+      --deck:#17a7b2; --joy:#e89526; --goodtxt:#0ca30c;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --surface-1:#1a1a19; --page:#0d0d0d;
+    --ink-1:#ffffff; --ink-2:#c3c2b7; --ink-3:#898781;
+    --grid:#2c2c2a; --border:rgba(255,255,255,0.12);
+    --meta:#9b7fe0; --core:#e2604a; --web:#3987e5; --android:#199e70;
+    --deck:#17a7b2; --joy:#e89526; --goodtxt:#0ca30c;
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--page); color:var(--ink-1);
+    font:13.5px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; padding:14px; }
+
+  .cartouche { display:grid; grid-template-columns:1fr auto; border:2px solid var(--ink-1);
+    background:var(--surface-1); }
+  .cart-l { padding:10px 16px; border-right:2px solid var(--ink-1); }
+  .cart-l h1 { margin:0; font-size:1.2rem; }
+  .cart-l .ondertitel { color:var(--ink-2); font-size:.8rem; margin-top:2px; }
+  .cart-r { display:grid; grid-template-columns:repeat(4,minmax(105px,auto)); font-size:.68rem; }
+  .cart-r div { padding:5px 10px; border-left:1px solid var(--grid); border-bottom:1px solid var(--grid); }
+  .cart-r div:nth-last-child(-n+4){ border-bottom:none; }
+  .agpl { color:var(--goodtxt); font-weight:800; }
+
+  .tabs { display:flex; gap:0; margin:10px 0 0; }
+  .tabs button { border:1px solid var(--border); border-bottom:none; background:var(--surface-1);
+    color:var(--ink-2); font:600 .85rem system-ui,sans-serif; padding:8px 18px; cursor:pointer;
+    border-radius:8px 8px 0 0; margin-right:4px; }
+  .tabs button.actief { background:var(--ink-1); color:var(--page); }
+  .tabblad { display:none; border:1px solid var(--border); border-radius:0 8px 8px 8px;
+    background:var(--surface-1); padding:12px; }
+  .tabblad.actief { display:block; }
+
+  .controls { display:flex; flex-wrap:wrap; align-items:center; gap:10px;
+    padding:6px 0 10px; border-bottom:1px solid var(--grid); margin-bottom:10px; }
+  .grp { display:inline-flex; border:1px solid var(--border); border-radius:999px;
+    background:var(--page); overflow:hidden; }
+  .grp button { border:0; background:transparent; color:var(--ink-2); cursor:pointer;
+    font:700 .78rem system-ui,sans-serif; padding:6px 12px; transition:all .25s; }
+  .grp button.actief { background:var(--ink-1); color:var(--page); }
+  .grp button .rd { width:8px; height:8px; border-radius:50%; display:inline-block; margin-right:4px; }
+  label.chk { display:inline-flex; gap:5px; align-items:center; font-size:.76rem;
+    color:var(--ink-2); cursor:pointer; user-select:none; }
+  .zoek { border:1px solid var(--border); border-radius:999px; background:var(--surface-1);
+    color:var(--ink-1); font:.78rem system-ui,sans-serif; padding:6px 12px; width:150px; }
+  .legenda { display:flex; flex-wrap:wrap; gap:9px; font-size:.7rem; color:var(--ink-2);
+    margin-left:auto; }
+  .legenda span { display:inline-flex; align-items:center; gap:4px; }
+  .dot { width:9px; height:9px; border-radius:50%; display:inline-block; }
+
+  .uitleg { font-size:.76rem; border:1px solid var(--border); border-left:3px solid var(--web);
+    border-radius:6px; padding:6px 10px; margin:0 0 10px; background:var(--page); color:var(--ink-2); }
+  .uitleg b { color:var(--ink-1); }
+
+  .plaatvlak { position:relative; overflow-x:auto; }
+  svg.rel { position:absolute; inset:0; width:100%; height:100%; pointer-events:none; z-index:5; }
+  .laagkop { font-size:.66rem; font-weight:700; color:var(--ink-3); text-transform:uppercase;
+    letter-spacing:.06em; margin:13px 0 5px; display:flex; align-items:center; gap:8px; }
+  .laagkop::after { content:""; flex:1; border-top:1px dashed var(--grid); }
+  .laagkop:first-child { margin-top:0; }
+
+  .keten { display:grid; grid-template-columns:repeat(7,1fr); gap:4px; position:relative; }
+  .chev { position:relative; cursor:pointer; min-height:70px;
+    background:color-mix(in srgb, var(--web) 14%, var(--surface-1));
+    clip-path:polygon(0 0, calc(100% - 12px) 0, 100% 50%, calc(100% - 12px) 100%, 0 100%, 12px 50%);
+    padding:7px 18px 7px 20px; transition:background .3s; }
+  .chev:hover, .chev.actief { background:color-mix(in srgb, var(--web) 32%, var(--surface-1)); }
+  .chev h3 { margin:0; font-size:.72rem; }
+  .chev .nr { color:var(--ink-3); margin-right:3px; }
+  .chev p.sub { margin:1px 0 0; font-size:.63rem; color:var(--ink-2); }
+  .kpi { display:block; margin-top:3px; font-size:.63rem; color:var(--ink-2); }
+  .kpi .val { font-weight:700; color:var(--ink-1); }
+  .kpi .doel { color:var(--ink-3); }
+  .kpi.k-goed .val { color:var(--goodtxt); }
+  .kpi.k-uit .val { color:var(--critical); }
+  .kpi.k-goed .val::after { content:" ✓"; }
+  .kpi.k-uit .val::after { content:" ✗"; }
+
+  .speler-dot { position:absolute; top:50%; left:0; width:10px; height:10px; margin-top:-5px;
+    border-radius:50%; background:var(--ink-1); border:2px solid var(--page); z-index:6;
+    animation:reis 14s linear infinite; }
+  @keyframes reis { 0%{left:1%;opacity:0;} 4%{opacity:1;} 96%{opacity:1;} 100%{left:98%;opacity:0;} }
+
+  .capband { display:grid; grid-template-columns:repeat(7,1fr); gap:4px 4px; margin-top:6px; }
+  .caprow { border-radius:5px; padding:3px 8px; font-size:.64rem; color:#fff;
+    display:flex; gap:7px; align-items:center; transition:opacity .4s; }
+  .caprow .nivo { font-family:ui-monospace,monospace; letter-spacing:1px; }
+  .caprow .naam { font-weight:700; }
+
+  .rij { display:grid; grid-template-columns:repeat(12,1fr); gap:6px; }
+  .blok { position:relative; cursor:pointer; background:var(--surface-1);
+    border:1px solid var(--border); border-radius:7px; padding:6px 9px;
+    font-size:.7rem; transition:opacity .4s, filter .4s, box-shadow .3s; z-index:2; grid-column:span 3; }
+  .blok h4 { margin:0 0 2px; font-size:.7rem; }
+  .blok p { margin:0; color:var(--ink-2); font-size:.64rem; }
+  .blok.meta{border-top:3px solid var(--meta);} .blok.core{border-top:3px solid var(--core);}
+  .blok.web{border-top:3px solid var(--web);} .blok.android{border-top:3px solid var(--android);}
+  .blok.deck{border-top:3px solid var(--deck);} .blok.joy{border-top:3px solid var(--joy);}
+  .blok.extern{border-top:3px solid var(--extern); border-style:dashed; border-top-style:solid;}
+  .blok.hl { box-shadow:0 0 0 2px var(--web); z-index:3; }
+  .blok.focus { box-shadow:0 0 0 3px var(--ink-1); z-index:4; }
+
+  /* impact-ringen */
+  .chev, .blok, .caprow { transition:opacity .45s, filter .45s, background .3s; }
+  .ring2 { opacity:.62; }
+  .gedimd { opacity:var(--dim, .18); filter:grayscale(.7); pointer-events:auto; }
+  .impactsel { border:1px solid var(--border); border-radius:999px; background:var(--surface-1);
+    color:var(--ink-1); font:600 .78rem system-ui,sans-serif; padding:6px 10px; max-width:260px; }
+
+  .badge { position:absolute; top:-9px; right:-5px; font-size:.6rem; font-weight:800;
+    border-radius:999px; padding:1.5px 7px; color:#fff; z-index:4; }
+  /* binnen een chevron knipt de clip-path een uitstekende badge weg — daar inline zetten */
+  .chev .badge { position:static; display:inline-block; margin-top:4px; animation:none; }
+  .b-risico { background:var(--critical); animation:pulse 1.8s infinite; }
+  .b-risico2 { background:var(--serious); color:#1a1a19; animation:pulse 1.8s infinite; }
+  .b-kans { background:var(--good); animation:pulse 2.6s infinite; }
+  @keyframes pulse { 0%,100%{transform:scale(1);} 50%{transform:scale(1.18);} }
+  body.hide-risico .b-risico, body.hide-risico .b-risico2 { display:none; }
+  body.hide-kans .b-kans { display:none; }
+  body.hide-kpi .kpi { display:none; }
+  .schat { color:var(--ink-3); }
+  .schat::before { content:"≈ "; font-weight:800; }
+
+  /* bewijs-modus */
+  .gate { display:none; margin-top:4px; font-size:.6rem; border-radius:4px; padding:1px 5px;
+    background:color-mix(in srgb, var(--good) 16%, var(--surface-1)); color:var(--goodtxt);
+    border-left:2px solid var(--good); }
+  body.bewijs .gate { display:block; }
+  body.bewijs .blok.onbewaakt, body.bewijs .chev.onbewaakt {
+    outline:2px dashed var(--critical); outline-offset:1px; }
+  .ongate { display:none; margin-top:4px; font-size:.6rem; color:var(--critical); font-weight:700; }
+  body.bewijs .ongate { display:block; }
+
+  .werkvlak { display:grid; grid-template-columns:1fr 310px; gap:12px; align-items:start; }
+  @media (max-width:1150px){ .werkvlak { grid-template-columns:1fr; } }
+  .paneel { position:sticky; top:8px; background:var(--page); border:1px solid var(--border);
+    border-radius:8px; padding:11px 13px; font-size:.76rem; min-height:180px; }
+  .paneel h3 { margin:0 0 6px; font-size:.85rem; border-bottom:1px solid var(--grid); padding-bottom:4px; }
+  .paneel h4 { margin:9px 0 3px; font-size:.68rem; color:var(--ink-3); text-transform:uppercase;
+    letter-spacing:.05em; }
+  .paneel .leeg { color:var(--ink-3); }
+  .paneel .mark { border-radius:6px; padding:5px 7px; margin:6px 0 0; font-size:.71rem; display:block; }
+  .paneel .m-risico { background:color-mix(in srgb,var(--critical) 12%,var(--surface-1)); border-left:3px solid var(--critical); }
+  .paneel .m-risico2 { background:color-mix(in srgb,var(--serious) 14%,var(--surface-1)); border-left:3px solid var(--serious); }
+  .paneel .m-kans { background:color-mix(in srgb,var(--good) 12%,var(--surface-1)); border-left:3px solid var(--good); }
+  .paneel .m-gate { background:color-mix(in srgb,var(--good) 10%,var(--surface-1)); border-left:3px solid var(--good); }
+  .paneel .grond { color:var(--ink-3); font-size:.66rem; margin-top:8px; font-family:ui-monospace,monospace; }
+  .paneel ul { margin:2px 0 0; padding-left:16px; }
+  .paneel li { font-size:.7rem; margin:1px 0; }
+  .paneel li.geen { list-style:none; margin-left:-14px; color:var(--ink-3); }
+  .paneel table.kpit { border-collapse:collapse; width:100%; margin-top:7px; font-size:.66rem; }
+  .paneel table.kpit th, .paneel table.kpit td { border-bottom:1px solid var(--grid);
+    padding:2px 4px; text-align:right; }
+  .paneel table.kpit th:first-child, .paneel table.kpit td:first-child { text-align:left; }
+  .paneel .pil { display:inline-block; font-size:.6rem; font-weight:800; border-radius:999px;
+    padding:1px 7px; color:#fff; margin-left:5px; }
+
+  .repo h2 { font-size:.95rem; margin:14px 0 6px; }
+  .repo h2:first-child { margin-top:0; }
+  .repo table { border-collapse:collapse; width:100%; font-size:.74rem; }
+  .repo th, .repo td { border:1px solid var(--grid); padding:3px 6px; text-align:left; vertical-align:top; }
+  .repo th { background:var(--page); color:var(--ink-3); font-weight:600; }
+  .repo input[type=text], .repo textarea, .repo select {
+    width:100%; border:1px solid transparent; background:transparent; color:var(--ink-1);
+    font:inherit; padding:1px 2px; border-radius:3px; }
+  .repo input:focus, .repo textarea:focus, .repo select:focus {
+    border-color:var(--web); outline:none; background:var(--page); }
+  .repo input.num { width:56px; text-align:right; }
+  .repo textarea { resize:vertical; min-height:34px; }
+  .repo .hint { font-size:.7rem; color:var(--ink-3); margin:4px 0 10px; }
+
+  .dsltab textarea { width:100%; min-height:480px; font:12px/1.5 ui-monospace,Menlo,monospace;
+    background:var(--page); color:var(--ink-1); border:1px solid var(--border); border-radius:6px;
+    padding:10px; white-space:pre; }
+  #dsl-status { font-size:.75rem; margin:6px 0; }
+  #dsl-status.ok { color:var(--goodtxt); } #dsl-status.fout { color:var(--critical); }
+
+  .paginanav { margin:0 0 10px; font-size:.78rem; color:var(--ink-3); }
+  .paginanav a { color:var(--web); text-decoration:none; }
+  .paginanav a:hover { text-decoration:underline; }
+  .paginanav span { color:var(--ink-1); font-weight:600; }
+
+  footer { margin:14px 0 4px; font-size:.67rem; color:var(--ink-3); }
+</style>
+</head>
+<body>
+
+<p class="paginanav"><a href="../">🕹 Emulator</a> · <a href="../docs/">📚 Documentatie</a>
+ · <a href="./">🗺 Architectuurviewer (_Web)</a> · <span>AP-01 sessie-reis (deze plaat)</span></p>
+
+<div class="cartouche">
+  <div class="cart-l">
+    <h1 id="titel">…</h1>
+    <div class="ondertitel">Model-gedreven architectuurplaat (Dragon1-stijl) — de ArchDSL-bron in het derde tabblad is de enige bron; plaat en repository volgen live.</div>
+  </div>
+  <div class="cart-r">
+    <div><b>Plaat</b>AP-01 · Sessie-reis</div>
+    <div><b>Versie</b><span id="versie">0.6.1-Radiola</span></div>
+    <div><b>Datum</b>28-07-2026</div>
+    <div><b>Licentie</b><span class="agpl">AGPL-3.0 · publiek</span></div>
+    <div><b>Scope</b>6 repo's in lock-step</div>
+    <div><b>Opsteller</b>C. Glebbeek (iCt Horse)</div>
+    <div><b>Bron-syntax</b>ArchDSL DSL-B + extensies</div>
+    <div><b>Aannames</b>gemarkeerd met ≈</div>
+  </div>
+</div>
+
+<div class="tabs">
+  <button class="actief" data-tab="plaat" onclick="tab('plaat')">Plaat</button>
+  <button data-tab="repo" onclick="tab('repo')">Repository (bewerkbaar)</button>
+  <button data-tab="dsl" onclick="tab('dsl')">ArchDSL-bron (live)</button>
+</div>
+
+<div class="tabblad actief" id="tab-plaat">
+  <div class="controls">
+    <div class="grp" id="repo-knoppen"></div>
+    <div class="grp"><button id="btn-cap" onclick="toggleCap()">Capability-view</button></div>
+    <div class="grp"><button id="btn-bewijs" onclick="toggleBewijs()">Bewijs-modus</button></div>
+    <select class="impactsel" id="impact-select" title="Impact-view: wat raakt een wijziging in dit onderdeel?"></select>
+    <input class="zoek" id="zoek" type="search" placeholder="zoek element…" autocomplete="off">
+    <label class="chk" title="Uit: alleen de relaties van de aangeklikte stap. Aan: alles tegelijk."><input type="checkbox" id="chk-rel" onchange="zetRelaties(this.checked)"> ⇢ alle relaties</label>
+    <label class="chk"><input type="checkbox" checked onchange="filter('hide-risico',!this.checked)"> ▲ risico's</label>
+    <label class="chk"><input type="checkbox" checked onchange="filter('hide-kans',!this.checked)"> ● kansen</label>
+    <label class="chk"><input type="checkbox" checked onchange="filter('hide-kpi',!this.checked)"> # metingen</label>
+    <div class="legenda" id="legenda"></div>
+  </div>
+  <div class="uitleg" id="uitleg"></div>
+  <div class="werkvlak">
+    <div class="plaatvlak" id="plaatvlak"></div>
+    <aside class="paneel" id="paneel"><h3>Detail</h3>
+      <p class="leeg">Klik een stap in de sessie-reis of een blok. Het paneel toont de toelichting,
+      de metingen, de risico's en — het belangrijkste — <b>waar het van afhangt</b>, <b>wat er breekt
+      als het wijzigt</b> en <b>welke gate dat bewaakt</b>.</p></aside>
+  </div>
+</div>
+
+<div class="tabblad repo" id="tab-repo">
+  <p class="hint">Alles hieronder is <b>bewerkbaar</b>. Elke wijziging gaat direct de plaat in én wordt
+  teruggeschreven naar de ArchDSL-bron (derde tab). Relaties bewerk je in de bron zelf
+  (<code>ac_index -&gt; ac_app</code>-regels; lees als <b>“hangt af van”</b>).</p>
+  <div id="repo-inhoud"></div>
+</div>
+
+<div class="tabblad dsltab" id="tab-dsl">
+  <p class="hint" style="font-size:.74rem;color:var(--ink-3)">Syntax: ArchDSL <b>DSL-B</b>
+  (AModeler/Dragon1, zie <code>AModeler/docs/SPEC_ARCHDSL_v2.md</code>) met lokale extensies:
+  de <code>-attr</code>-conventies <code>kpi*</code>, <code>risico*</code>, <code>kans*</code>,
+  <code>laag</code>, <code>repo</code>, <code>grond</code>, <code>gate</code>, <code>dekt</code>,
+  <code>nivo</code>. Relatierichting = <b>“hangt af van”</b>. Typ en de plaat + repository veranderen live.</p>
+  <div id="dsl-status" class="ok">—</div>
+  <textarea id="dsl-bron" spellcheck="false"></textarea>
+</div>
+
+<footer id="voet">
+  <b>Bronnen</b>: <code>Meta_VideopacHorse/ARCHITECTURE.md</code>, <code>VideopacHorse_Core/ARCHITECTURE.md</code>,
+  <code>VideopacHorse_Web/docs/{DEPENDENCIES,PRINCIPLES,BUGLIST,DUPLICATES}.md</code>, <code>version.json</code> ×6.
+  <b>Metingen</b>: testsuites (86/86 Core, 36/36 QUIRKS, 49 browserchecks), netplay-meting 27-07-2026
+  (44–49 van 50 PAL-frames/s, RTT ~27 ms, 0 desync), <code>jscpd</code>-meting 28-07-2026 (1,3%).
+  <b>≈</b> = schatting van de opsteller, geen meting — aan te passen in de Repository-tab.
+</footer>
+
+<script type="text/archdsl" id="bron-init">
+# ArchDSL-bron — plaat AP-01 Sessie-reis VideopacHorse-ecosysteem (AGPL-3.0, publiek)
+# Dialect: DSL-B (AModeler/Dragon1). Lokale extensies:
+#   -attr kpi*   = "naam|eenheid|waarde|doel|richting|schat"  (richting h=hoger beter, l=lager beter, n=neutraal)
+#   -attr risico/kans (+ _zwaar), -attr laag/repo/grond/gate/dekt/nivo/impact
+# Relatierichting: 'A -> B' betekent A HANGT AF VAN B. Wijzigt B, dan breekt A.
+set language archimate
+set title "Sessie-reis & ecosysteem-architectuur — VideopacHorse 0.6.1-Radiola"
+set impact dim "0.18"
+
+Viewpoint capview "Capability-view"
+
+# ── de sessie-reis: van pagina openen tot herstel na onderbreking ──
+BusinessProcess s1 "Pagina openen" {
+  -step "1"
+  -attr sub = "/videopac/ · wasm + games.json"
+  -attr tekst = "De speler opent de netplay-pagina. Alles is statisch: geen backend voor de emulatie, geen cookies, geen analytics. build.sh heeft cache-busters in de URL's gezet zodat een nieuwe engine ook echt aankomt — dat is niet vanzelfsprekend (BUG-002: een proxy bij de gebruiker cachete de wasm, incognito hielp niet)."
+  -attr kpi = "Speelbare titels in de lijst|stuks|65|65|h|-"
+  -attr kpi2 = "ROM-bytes via onze server|bytes|0|0|l|-"
+  -attr kans = "Een stilstaand beeld moet zichzelf verklaren (P-10): de pagina vertelt wat hij doet vóór je iets aanklikt."
+  -attr grond = "P-1 · P-9 · P-10 · web/index.html"
+  -attr gate = "tests/run.sh — browsersuite"
+}
+BusinessProcess s2 "BIOS & cartridge" {
+  -step "2"
+  -attr sub = "eigen bestand of archive.org"
+  -attr tekst = "De speler levert BIOS en cartridge zelf, of haalt ze client-side van archive.org via /cors/. Gecontroleerd op CRC en bewaard in IndexedDB. Wij hosten en proxyen geen ROM-byte — dat is een productbelofte, geen detail."
+  -attr kpi = "Titels met CRC in games.json|stuks|65|65|h|-"
+  -attr risico = "Valt een archive.org-URL weg of wijzigt een CRC, dan kan de gast het spel niet zelf ophalen en valt netplay terug op peer-to-peer-overdracht (met melding)."
+  -attr risico_vanaf = "1"
+  -attr grond = "P-2 · web/games.json · DEPENDENCIES.md"
+  -attr gate = "tests/run.sh — API + browsersuite"
+}
+BusinessProcess s3 "Sessie starten" {
+  -step "3"
+  -attr sub = "pair-create · 4 codes"
+  -attr tekst = "De host start een sessie en krijgt vier codes: één gastcode en joystickcodes voor speler 1 en 2, plus — sinds v0.6.0 — een eigen joystickcode voor de gast die pas bij pair-join wordt uitgeleverd. De rol zit in de code; de server wijst niets meer toe."
+  -attr kpi = "Codes per sessie|stuks|4|4|n|-"
+  -attr kpi2 = "Codelengte|tekens uit A-Z2-9|6|6|n|-"
+  -attr kans = "Elke rol een eigen sleutel (P-7): endpoints hoeven elkaars bezetting niet te bewaken — precies waar BUG-009 en BUG-012 op stukliepen."
+  -attr grond = "P-7 · web/api/index.php · BUG-012"
+  -attr gate = "tests/run.sh — API-suite"
+}
+BusinessProcess s4 "Gast koppelt" {
+  -step "4"
+  -attr sub = "pair-join · WebRTC · handshake"
+  -attr tekst = "De gast voert de gastcode in. Via de signaling-API onderhandelen beide kanten een WebRTC-verbinding (STUN, geen TURN). De handshake eist dezelfde wasm-versie en dezelfde cartridge-CRC: verschilt er iets, dan weigert de sessie in plaats van uit de pas te lopen."
+  -attr kpi = "RTT gemeten|ms|27|50|l|-"
+  -attr kpi2 = "Faalkans verbinding (lokaal gemeten)|%|20|0|l|-"
+  -attr risico = "Er is géén TURN. Achter symmetrische NAT komt de verbinding niet tot stand; lokaal faalde 1 op 5 testruns. De netplay-testsuite geeft daarom exit 2 (omgeving) in plaats van rood, en run.sh doet één herkansing."
+  -attr risico_zwaar = "1"
+  -attr grond = "DEPENDENCIES.md — externe afhankelijkheden · tests/run.sh"
+  -attr gate = "tests/run.sh — netplay-suite (exit 2 = omgeving)"
+}
+BusinessProcess s5 "Telefoon koppelt" {
+  -step "5"
+  -attr sub = "ctrl-join · owner host|guest"
+  -attr tekst = "Een telefoon met de VPHJoystick-APK koppelt met een joystickcode. Elke controller heeft een owner (host of gast); de unieke index op (sessie, slot, owner) laat toe dat slot 1 twee bronnen heeft. Gast en telefoon op speler 2 tellen op in plaats van elkaar uit te sluiten."
+  -attr kpi = "Joystick-mask|bits|5|5|n|-"
+  -attr risico = "Het endpoint-contract staat óók in een APK die al bij mensen op de telefoon staat. Een veldnaam wijzigen in pair-create of ctrl-join breekt een geïnstalleerde app die wij niet kunnen terugroepen."
+  -attr risico_zwaar = "1"
+  -attr kans = "Invoerbronnen tellen op (P-6): toetsenbord, gamepad, telefoon en peer voeden hetzelfde knooppunt."
+  -attr grond = "P-6 · P-7 · api/index.php:752 · BUG-009 · BUG-012"
+  -attr gate = "tests/run.sh — API-suite · handmatige toesteltest OPEN"
+}
+BusinessProcess s6 "Samen spelen" {
+  -step "6"
+  -attr sub = "lockstep · alleen invoer over de lijn"
+  -attr tekst = "Beide kanten draaien dezelfde emulatie; alleen invoer gaat over de lijn (~50 B/s). Delay-based lockstep met 10 frames redundantie tegen een onbetrouwbaar DataChannel, state-hash elke 60 frames en savestate-resync bij afwijking. Alles wat de emulatiestaat raakt — invoer, consoletoetsen, reset, regio, cartridge-wissel — gaat via de lockstep en wordt op een frame gepland."
+  -attr kpi = "PAL-frames/s, ondergrens gemeten|fps|44|50|h|-"
+  -attr kpi2 = "Invoerbandbreedte|B/s|50|50|n|-"
+  -attr kpi3 = "Desyncs in de meting|stuks|0|0|l|-"
+  -attr kans = "Beide kanten hebben een eigen scherp beeld en eigen geluid — geen videostream, geen kwaliteitsverlies bij de gast."
+  -attr risico = "Regio wisselen kan alleen buiten een sessie. Nog niet opgelost: een regiowissel tijdens netplay zou via de lockstep gepland moeten worden."
+  -attr grond = "P-5 · P-11 · web/netplay.js · make netcheck"
+  -attr gate = "make netcheck (Core) + tests/run.sh — netplay-suite"
+}
+BusinessProcess s7 "Stall & herstel" {
+  -step "7"
+  -attr sub = "tabblad weg · 0,2–0,3 s terug"
+  -attr tekst = "Een tabblad wegklikken bevriest requestAnimationFrame. De lockstep laat de ander wachten en de pagina meldt waarom. Herstel duurt 0,2–0,3 s, ook na 6 seconden stilstand. Géén savestate sturen: dat is op 27-07 geprobeerd en teruggedraaid — wie stalt is zelf de achterblijver, dus zijn savestate zette de vooruitlopende medespeler terug (host bleef op frame 15 met 8 resyncs)."
+  -attr kpi = "Hersteltijd na stall|s|0,3|1|l|-"
+  -attr kpi2 = "Stilstand die nog herstelt|s|6|6|h|-"
+  -attr kans = "Herstelmechanismen worden gemeten, niet beredeneerd (P-11) — deze regel is letterlijk uit deze fout geboren."
+  -attr grond = "P-11 · BUGLIST 'geprobeerd en teruggedraaid' 27-07"
+  -attr gate = "make netcheck — desync-detectie + savestate-herstel"
+}
+
+# ── capabilities (Capability-view; niveau 1–5, alle ≈) ─────────
+Capability cap1 "Emulatie-getrouwheid" { -attr dekt = "s1,s2" -attr nivo = "4" -attr toel = "8048 + scanline-VDC incl. collision + audio + cart-banking; 36/36 QUIRKS gedekt. Acht v0.1-canonkeuzes wachten nog op echte-ijzer-metingen." }
+Capability cap2 "Sessiebeheer & rollen" { -attr dekt = "s3,s4,s5" -attr nivo = "4" -attr toel = "Vier codes, rol in de sleutel, owner-scheiding. Eén laag ontbreekt: er is geen accountmodel, een code is de hele identiteit." }
+Capability cap3 "Determinisme & netcode" { -attr dekt = "s6,s7" -attr nivo = "4" -attr toel = "Lockstep + state-hash + savestate-resync, bewaakt door make netcheck. Aftrek voor het ontbreken van TURN." }
+Capability cap4 "Invoer & controllers" { -attr dekt = "s5,s6" -attr nivo = "3" -attr toel = "Toetsenbord, gamepad, telefoon en peer tellen op. Nog niet op een echt toestel getest met de nieuwe joystickcodes." }
+Capability cap5 "Distributie & installatie" { -attr dekt = "s1" -attr nivo = "2" -attr toel = "Web is live; Android en Steam Deck zijn skeletten. Van de drie geplande frontends draait er één." }
+Capability cap6 "Vastlegging & bewijs" { -attr dekt = "s1,s2,s3,s4,s5,s6,s7" -attr nivo = "3" -attr toel = "PRINCIPLES/DEPENDENCIES/DUPLICATES/BUGLIST zijn compleet voor _Web; de andere vijf repo's hebben alleen ARCHITECTURE.md." }
+
+# ── spelers & apparaten ────────────────────────────────────────
+BusinessActor a_host "Host" {
+  -attr laag = "actoren" -attr repo = "extern" -attr sub = "start de sessie, deelt codes"
+  -attr tekst = "Opent /videopac/, laadt BIOS en cartridge, start de sessie en geeft de codes door."
+}
+BusinessActor a_gast "Gast" {
+  -attr laag = "actoren" -attr repo = "extern" -attr sub = "eigen emulatie, eigen beeld"
+  -attr tekst = "Voert de gastcode in en draait dezelfde emulatie. Haalt BIOS en cartridge zelf op via de CRC uit de handshake; peer-to-peer alleen als laatste redmiddel, met melding."
+}
+BusinessActor a_tel "Telefoon-speler" {
+  -attr laag = "actoren" -attr repo = "extern" -attr sub = "VPHJoystick-APK"
+  -attr tekst = "Koppelt met een joystickcode als speler 1 of 2, aan host- of gastzijde."
+}
+Device n_browser_h "Browser host" {
+  -attr laag = "actoren" -attr repo = "web" -attr sub = "Chrome/Firefox/Safari · Steam Deck"
+  -attr tekst = "Draait de wasm-engine, de lockstep en de pairing-aanroepen."
+  -attr gate = "tests/run.sh — browsersuite"
+}
+Device n_browser_g "Browser gast" {
+  -attr laag = "actoren" -attr repo = "web" -attr sub = "zelfde bundel, zelfde wasm"
+  -attr tekst = "Identieke bundel. Verschilt de wasm-versie, dan weigert de handshake de sessie."
+  -attr gate = "tests/run.sh — netplay-suite"
+}
+Device n_phone "Android-telefoon" {
+  -attr laag = "actoren" -attr repo = "joy" -attr sub = "APK van HorseAPK"
+  -attr tekst = "Draait VPHJoystick; praat rechtstreeks met de ctrl-endpoints, niet met de browser."
+  -attr risico = "Nog niet op een echt toestel getest met de joystickcodes van v0.6.0 — staat als openstaande actie."
+  -attr grond = "ACTIONS.md — telefoon-joystick op echt toestel"
+}
+
+# ── frontends & pagina's ───────────────────────────────────────
+ApplicationComponent ac_index "web/index.html" {
+  -attr laag = "frontend" -attr repo = "web" -attr sub = "netplay — de gewone versie"
+  -attr tekst = "De hoofdpagina. De element-id's zijn het contract met app.js én netplay.js: hernoem je #screen, #btnStart, #fps, #chkNtsc, #configCard, #gamesList of #ctrlStatus, dan faalt de glue stil — geen exception, wel geen beeld."
+  -attr risico = "Stil contract: id's breken zonder foutmelding. Dit is het gevaarlijkste soort afhankelijkheid in de hele plaat, want er is geen signaal."
+  -attr risico_zwaar = "1"
+  -attr grond = "DEPENDENCIES.md — eenheden"
+  -attr gate = "tests/run.sh — browsersuite"
+}
+ApplicationComponent ac_app "web/app.js" {
+  -attr laag = "frontend" -attr repo = "web" -attr sub = "glue · invoer · GAMES · config"
+  -attr tekst = "De meest gedeelde eenheid: raakt alle drie de pagina's tegelijk. pushJoy() is het invoerknooppunt, pushKey() dat voor consoletoetsen; beide hebben een netplay-tak. Haal je die weg, dan gaat invoer rechtstreeks naar de core en lopen de machines uit de pas. buildConfigPanel() bouwt het configuratiepaneel voor beide pagina's."
+  -attr kpi = "Codeduplicatie repo-breed|%|1,3|3|l|-"
+  -attr risico = "Eén bestand voor netplay én archief. Elke wijziging is per definitie een wijziging aan de gearchiveerde pagina."
+  -attr grond = "P-4 · P-5 · web/app.js:298 · DUP-005"
+  -attr gate = "tests/run.sh — beide browsersuites"
+}
+ApplicationComponent ac_netplay "web/netplay.js" {
+  -attr laag = "frontend" -attr repo = "web" -attr sub = "lockstep · desync · resync"
+  -attr tekst = "Levert een pairPlay-vormige API zodat app.js niet hoeft te weten welke variant draait. Wijzigt die vorm (getStatus, sendGuestInput, restore, stop), dan breken de telefoon-joysticks, want ctrlPad leest hostToken daaruit."
+  -attr risico = "Determinisme is heilig: alles wat de emulatiestaat raakt moet via de lockstep en op een frame gepland worden, nooit rechtstreeks naar de core."
+  -attr risico_zwaar = "1"
+  -attr grond = "P-5 · P-11 · web/netplay.js:368"
+  -attr gate = "make netcheck + tests/run.sh — netplay-suite"
+}
+ApplicationComponent ac_stream "web/stream/" {
+  -attr laag = "frontend" -attr repo = "web" -attr sub = "archief · pairplay.js"
+  -attr tekst = "De gearchiveerde streamversie, waarbij de host zijn beeld naar de gast streamde. Hergebruikt app.js, style.css en de wasm één map hoger via window.VPH_BASE/VPH_API. Alleen onderhoud, geen nieuwe functies."
+  -attr risico = "Vergeet je VPH_BASE te zetten, dan zoekt app.js de wasm en games.json onder /stream/ en laadt er niets."
+  -attr kans = "Beslissing open: opruimen scheelt onderhoud en laat DUP-004 vanzelf vervallen."
+  -attr grond = "DUP-004 · ACTIONS.md — streamversie opruimen?"
+  -attr gate = "tests/run.sh — archief-browsersuite"
+}
+ApplicationComponent ac_redirect "web/2/index.html" {
+  -attr laag = "frontend" -attr repo = "web" -attr sub = "doorverwijzing"
+  -attr tekst = "Verwijst door naar de hoofdpagina. Verwijderen breekt oude links en bladwijzers naar /videopac/2/, verder niets."
+  -attr grond = "DEPENDENCIES.md"
+}
+ApplicationComponent ac_apk "VPHJoystick (APK)" {
+  -attr laag = "frontend" -attr repo = "joy" -attr sub = "Api.kt · gepubliceerd op HorseAPK"
+  -attr tekst = "Kotlin-app die de ctrl-endpoints aanroept. Gradle bouwt de naam VPHJoystick-* (HorseAPK-gate eist dat het package daarop eindigt) en leest de versie uit version.json."
+  -attr risico = "Staat bij gebruikers geïnstalleerd. Het API-contract kan niet eenzijdig wijzigen; een release is een migratie, geen deploy."
+  -attr risico_zwaar = "1"
+  -attr grond = "BUG-013 · DEPENDENCIES.md — API-contract"
+  -attr gate = "geen automatische gate — handmatige toesteltest"
+}
+ApplicationComponent ac_android "VideopacHorse_Android" {
+  -attr laag = "frontend" -attr repo = "android" -attr sub = "skelet · JNI/NDK gepland"
+  -attr tekst = "Kotlin + NDK-frontend die libg7000 via JNI zou binden. Staat als placeholder in lock-step; promotie tot volwaardig Gradle-project met APK via de HorseAPK-flow is een openstaande actie."
+  -attr risico = "Loopt mee in elke versiebump zonder dat er iets getest wordt — een lock-step-bump suggereert dekking die er niet is."
+  -attr grond = "ACTIONS.md — Android-promotie"
+  -attr gate = "geen"
+}
+ApplicationComponent ac_deck "VideopacHorse_SteamDeck" {
+  -attr laag = "frontend" -attr repo = "deck" -attr sub = "skelet · SDL2 + Flatpak"
+  -attr tekst = "SDL2-frontend met Flatpak-bundel, te deployen via /Deploy2SteamDeck. Nog niet gebouwd; de Deck draait vandaag gewoon de webversie in de browser."
+  -attr grond = "ACTIONS.md — SteamDeck-promotie"
+  -attr gate = "geen"
+}
+
+# ── engine & contract ──────────────────────────────────────────
+ApplicationInterface hdr "include/g7000.h" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "het contract · framebuffer + audio + input"
+  -attr tekst = "De volledige contractset tussen core en frontends: RGBA8888-framebuffer, mono s16-audio, joystick- en keymatrix-invoer. De core kent de ports niet; de ports kennen alleen deze header."
+  -attr risico = "Wijzigt deze header, dan hercompileren alle drie de ports, moet EXPORTED_FUNCTIONS mee en volgt een Oranje versiebump over alle zes de repo's. Het duurste bestand van het ecosysteem."
+  -attr risico_zwaar = "1"
+  -attr impact = "ac_android,ac_deck,ar_wasm,v_lockstep"
+  -attr grond = "Core/ARCHITECTURE.md — oorzaak/gevolg-matrix"
+  -attr gate = "make test (Core) — 86/86"
+}
+ApplicationComponent src_sys "src/sys.c" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "API · bus 0x000-0xFFF · scheduling"
+  -attr tekst = "Create/destroy, bus-routing, frame-scheduling CPU↔VDC, input-latching, warme en koude reset. Klokt CPU en VDC per scanline in lock-step, zodat mid-scanline registerwrites zichtbaar zijn (QUIRKS V1)."
+  -attr kpi = "Core-tests geslaagd|van 86|86|86|h|-"
+  -attr grond = "Core/ARCHITECTURE.md · QUIRKS V1"
+  -attr gate = "make test — canary-tests"
+}
+ApplicationComponent src_cpu "src/cpu8048.c" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "MCS-48 · timer · interrupts"
+  -attr tekst = "Volledige MCS-48: registers, 11-bit PC + MB, timer/counter, interrupts, T0/T1, poorten P1/P2/BUS, cycle-teller."
+  -attr risico = "Raak je de CPU-timing, dan schuiven VDC-sync (V1) en audio-pitch (A1) mee — dat is niet lokaal te overzien."
+  -attr grond = "Core/ARCHITECTURE.md — oorzaak/gevolg"
+  -attr gate = "make test — C-quirks + canary"
+}
+ApplicationComponent src_vdc "src/vdc8244.c" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "scanline-renderer · collision · audio"
+  -attr tekst = "Chars, quads, sprites, grid en dots per scanline; collision-bitmatrix; VBLANK/HBLANK met IRQ; toon- en ruisgenerator; palet."
+  -attr kpi = "QUIRKS gedekt|van 36|36|36|h|-"
+  -attr risico = "De registerlayout zit vast aan het savestate-formaat (S3) en de collision-tests (V3)."
+  -attr grond = "QUIRKS V1/V3 · BUG-001 char-renderer absolute-Y"
+  -attr gate = "make test — V- en A-quirks"
+}
+ApplicationComponent src_cart "src/cart.c" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "mapping · P1-banking · mirror"
+  -attr tekst = "Mappingformule (QUIRKS M4), live banking via P1, mirror op 0xC00, open bus 0xFF."
+  -attr grond = "QUIRKS M4/M7"
+  -attr gate = "make test — M-quirks + bank-CRC-vectoren"
+}
+ApplicationComponent src_state "src/state.c" {
+  -attr laag = "engine" -attr repo = "core" -attr sub = "savestate · BIOS-CRC in header"
+  -attr tekst = "Versioned blob met BIOS-CRC32, machinetype en regio in de header. Netplay leunt hierop voor resync na desync."
+  -attr risico = "Wijzigt de struct, dan moet het state-versienummer omhoog én is er een migratietest nodig."
+  -attr grond = "QUIRKS S3 · Core/ARCHITECTURE.md"
+  -attr gate = "make test — S-quirks + make netcheck"
+}
+Artifact ar_wasm "web/g7000.{js,wasm}" {
+  -attr laag = "engine" -attr repo = "web" -attr sub = "build-artefact uit make wasm"
+  -attr tekst = "Build-artefact van de Core — nooit met de hand wijzigen. De versiestring in de wasm is bij netplay een handshake-eis: verschillen host en gast, dan weigert de sessie."
+  -attr risico = "Komt de nieuwe wasm niet aan bij de gebruiker, dan speelt hij met een oude engine terwijl de fix live staat. Cache-busting boven cache-headers (BUG-002)."
+  -attr grond = "P-3 · P-9 · BUG-002 · build.sh"
+  -attr gate = "build.sh — cache-buster uit version.json"
+}
+
+# ── pairing & signaling ────────────────────────────────────────
+ApplicationComponent ac_api "web/api/index.php" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "pairing + signaling · SQLite"
+  -attr tekst = "Het enige stukje server in de hele keten — en niet voor de emulatie, alleen om twee mensen bij elkaar te brengen. Het endpoint-contract is gedeeld met netplay.js, pairplay.js, app.js én de Android-app."
+  -attr risico = "Een niet-uitgelezen PDO-cursor blokkeerde ooit de eigen schrijfactie (BUG-011); GC die alleen host-tokens kende wiste elk gast-signaal (BUG-003)."
+  -attr risico_zwaar = "1"
+  -attr grond = "BUG-003 · BUG-007 · BUG-011 · api/index.php:752"
+  -attr gate = "tests/run.sh — API-suite tegen wegwerp-DB"
+}
+ApplicationService as_pair "pair-create / -join / -end" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "gastcode · host- en gast-token"
+  -attr tekst = "Maakt de sessie en laat de gast toetreden. pair-join geeft geen host-token meer terug: een token is een identiteit, en je deelt nooit de identiteit van een andere rol uit (BUG-003b)."
+  -attr grond = "P-7 · BUG-003b"
+  -attr gate = "tests/run.sh — API-suite"
+}
+ApplicationService as_rtc "rtc-signal-send / -poll" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "WebRTC-onderhandeling"
+  -attr tekst = "Wisselt SDP en ICE-kandidaten uit tot de DataChannels staan. Vroege ICE-kandidaten mogen niet worden weggegooid (BUG-006); 'disconnected' is een tijdelijke toestand, geen einde (BUG-010)."
+  -attr grond = "BUG-006 · BUG-010"
+  -attr gate = "tests/run.sh — netplay-suite"
+}
+ApplicationService as_ctrl "ctrl-join / -input / -poll / -leave" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "owner host|guest · slot 0/1"
+  -attr tekst = "Koppelt telefoons. ctrl-poll accepteert sinds v0.6.0 zowel het host- als het gast-token en geeft elke kant alleen zijn eigen telefoons terug."
+  -attr risico = "Faalt het pollen zelf, dan bleef de stick ooit 'ingedrukt' staan: een failsafe hoort op de route, niet alleen op de bron (P-8, BUG-011)."
+  -attr grond = "P-8 · api/index.php:752 · BUG-011 · BUG-012"
+  -attr gate = "tests/run.sh — API-suite"
+}
+DataObject do_db "pairing.db" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "sessions · controllers · rtc_signals"
+  -attr tekst = "SQLite op /var/lib/videopac/. Unieke index op (session_token, slot, owner) — die sleutel is de reden dat slot 1 twee bronnen mag hebben."
+  -attr risico = "Als twee endpoints elkaars capaciteit moeten bewaken, is de sleutel te grof (BUG-012). Dat was geen bug in een regel code maar in het datamodel."
+  -attr risico_zwaar = "1"
+  -attr grond = "BUG-012 · api/index.php:185"
+  -attr gate = "tests/run.sh — API-suite"
+}
+DataObject do_idb "IndexedDB (browser)" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "BIOS- en ROM-cache"
+  -attr tekst = "BIOS en cartridges blijven op het apparaat van de gebruiker. Dit is waar de belofte 'wij hosten geen ROM' fysiek landt."
+  -attr grond = "P-2"
+}
+DataObject do_games "web/games.json" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "65 titels · CRC als sleutel"
+  -attr tekst = "De CRC is de sleutel: netplay zoekt de cartridge van de host erop op. Verandert een CRC of valt een URL weg, dan valt de gast terug op peer-to-peer."
+  -attr grond = "P-2 · DEPENDENCIES.md"
+  -attr gate = "tests/run.sh — browsersuite"
+}
+DataObject do_style "web/style.css" {
+  -attr laag = "pairing" -attr repo = "web" -attr sub = "tokens · gedeeld door 3 pagina's"
+  -attr tekst = "Een token hernoemen raakt DESIGN_TOKENS.md én CFG_COLORS/CFG_RANGES in app.js: het configuratiepaneel bindt op variabelenaam."
+  -attr grond = "P-4 · DUP-001"
+}
+
+# ── infra & externe bronnen ────────────────────────────────────
+Node n_hc55 "HorseCloud55" {
+  -attr laag = "infra" -attr repo = "extern" -attr sub = "nginx + php8.3-fpm · gedeelde server"
+  -attr tekst = "Gedeelde infrastructuur: /var/www/videopac/ met snippet videopac-locations.conf. Backup vóór elke nginx-wijziging, daarna verifiëren dat álle location-blocks er nog staan."
+  -attr risico = "opcache draait met revalidate_freq=2: de eerste seconden na een rsync kan nog de oude code draaien. Bij v0.6.0 gaf dat groene tests naast een PRAGMA table_info met het oude schema."
+  -attr grond = "SHARED_INFRASTRUCTURE.md · DEPENDENCIES.md — API-deploy"
+  -attr gate = "all-location-blocks-verify"
+}
+TechnologyService ts_stun "STUN (Google)" {
+  -attr laag = "infra" -attr repo = "extern" -attr sub = "geen TURN"
+  -attr tekst = "stun.l.google.com en stun1 helpen bij het vinden van een pad tussen de twee browsers."
+  -attr risico = "Zonder TURN werkt samen spelen niet achter symmetrische NAT. Dit is de enige plek waar het product afhangt van een dienst die wij niet draaien en niet kunnen vervangen."
+  -attr risico_zwaar = "1"
+  -attr grond = "DEPENDENCIES.md — externe afhankelijkheden"
+}
+TechnologyService ts_archive "archive.org /cors/" {
+  -attr laag = "infra" -attr repo = "extern" -attr sub = "publieke ROM-bron"
+  -attr tekst = "Levert BIOS en cartridges rechtstreeks aan de browser van de gebruiker. Onze server ziet die bytes niet."
+  -attr risico = "Valt de bron weg, dan kan de gast niets meer zelf ophalen en leunt netplay volledig op peer-to-peer-overdracht."
+  -attr grond = "P-2 · DEPENDENCIES.md"
+}
+TechnologyService ts_p2p "WebRTC DataChannels" {
+  -attr laag = "infra" -attr repo = "extern" -attr sub = "kanalen ctl + in"
+  -attr tekst = "Twee kanalen: besturing en invoer. Onbetrouwbaar van aard — vandaar 10 frames redundantie in de lockstep."
+  -attr grond = "P-5 · web/netplay.js"
+  -attr gate = "make netcheck — desync-detectie"
+}
+Node n_apkcat "HorseAPK-catalogus" {
+  -attr laag = "infra" -attr repo = "extern" -attr sub = "private distributie"
+  -attr tekst = "Distributiekanaal voor VPHJoystick. De gate eist dat het package op de projectnaam eindigt."
+  -attr grond = "BUG-013"
+}
+
+# ── regie & borging ────────────────────────────────────────────
+BusinessObject v_lockstep "Lock-step versienummer" {
+  -attr laag = "regie" -attr repo = "meta" -attr sub = "version.json ×6 · v0.6.1-Radiola"
+  -attr tekst = "Alle zes de repo's dragen dezelfde versie en codenaam. Bij netplay is dat niet cosmetisch: de handshake vergelijkt de versiestring uit de wasm."
+  -attr kpi = "Repo's in lock-step|stuks|6|6|h|-"
+  -attr kpi2 = "Frontends live van gepland|stuks|1|3|h|-"
+  -attr risico = "Een bump zonder wijziging suggereert dekking: Android en SteamDeck krijgen elke release een nieuw nummer zonder dat er iets aan getest is."
+  -attr impact = "ac_android,ac_deck,ac_apk,ar_wasm"
+  -attr grond = "Meta_VideopacHorse/CLAUDE.md regel 1"
+}
+BusinessObject g_netcheck "make netcheck" {
+  -attr laag = "regie" -attr repo = "core" -attr sub = "determinisme-gate"
+  -attr tekst = "Draait determinisme, desync-detectie en savestate-herstel in de Core. Verplicht bij elke wijziging die de emulatiestaat of de lockstep raakt."
+  -attr kans = "Een gate die het subsysteem aanroept zoals de app dat doet — anders bewijst groen niets."
+  -attr grond = "P-5 · P-12"
+}
+BusinessObject g_runsh "tests/run.sh" {
+  -attr laag = "regie" -attr repo = "web" -attr sub = "API + 2 browsersuites · 49 checks"
+  -attr tekst = "Draait tegen een wegwerpkopie met een eigen database en raakt de productie-DB nooit. Ook live uit te voeren."
+  -attr kpi = "Checks|stuks|49|49|h|-"
+  -attr risico = "De netplay-suite geeft exit 2 als de WebRTC-verbinding niet tot stand komt — omgeving, geen codefout. Faalkans ongeveer 1 op 5; run.sh doet één herkansing."
+  -attr grond = "P-12 · tests/run.sh"
+}
+BusinessObject d_docs "Vastlegging" {
+  -attr laag = "regie" -attr repo = "meta" -attr sub = "PRINCIPLES · DEPENDENCIES · DUPLICATES · BUGLIST"
+  -attr tekst = "Twaalf principes, een afhankelijkheidsmatrix met 'wat breekt er als X wijzigt', een duplicatenregister en een buglijst met RCA op drie niveaus. Deze plaat is een view op die vier documenten."
+  -attr kpi = "Repo's met volledige vastlegging|van 6|1|6|h|-"
+  -attr risico = "DUP-003 t/m DUP-006 wachten op akkoord; zonder dat blijft bewuste duplicatie formeel ongoedgekeurd."
+  -attr grond = "docs/PRINCIPLES.md · docs/DEPENDENCIES.md · docs/DUPLICATES.md"
+}
+BusinessObject d_cal "CAL-brandmuur" {
+  -attr laag = "regie" -attr repo = "meta" -attr sub = "geen O2EM/MAME-code"
+  -attr tekst = "De engine is from scratch geschreven. Geen regel uit O2EM of MAME, en geen ROM of BIOS in enige repo. Dat is wat AGPL-3.0 publiceren mogelijk maakt."
+  -attr kans = "Zonder deze grens was het hele ecosysteem niet publiek te maken."
+  -attr grond = "Core/CLAUDE.md regel 3-4 · O2EM_DEEPDIVE.md"
+}
+
+# ── relaties: 'A -> B' = A HANGT AF VAN B ──────────────────────
+s1 -> ac_index
+s1 -> ar_wasm
+s2 -> do_games
+s2 -> ts_archive
+s2 -> do_idb
+s3 -> as_pair
+s4 -> as_pair
+s4 -> as_rtc
+s4 -> ts_stun
+s4 -> ac_netplay
+s5 -> as_ctrl
+s5 -> ac_apk
+s6 -> ac_netplay
+s6 -> ts_p2p
+s7 -> ac_netplay
+s7 -> src_state
+a_host -> n_browser_h
+a_gast -> n_browser_g
+a_tel -> n_phone
+n_browser_h -> ac_index
+n_browser_g -> ac_index
+n_phone -> ac_apk
+ac_index -> ac_app
+ac_index -> ac_netplay
+ac_index -> do_style
+ac_stream -> ac_app
+ac_stream -> do_style
+ac_redirect -> ac_index
+ac_app -> ar_wasm
+ac_app -> do_games
+ac_app -> do_idb
+ac_app -> as_ctrl
+ac_netplay -> ac_app
+ac_netplay -> as_pair
+ac_netplay -> as_rtc
+ac_netplay -> ts_p2p
+ac_netplay -> src_state
+ac_apk -> as_ctrl
+ac_android -> hdr
+ac_deck -> hdr
+ar_wasm -> hdr
+ar_wasm -> src_sys
+src_sys -> hdr
+src_sys -> src_cpu
+src_sys -> src_vdc
+src_sys -> src_cart
+src_sys -> src_state
+src_vdc -> src_cpu
+src_cart -> src_cpu
+src_state -> src_vdc
+as_pair -> ac_api
+as_rtc -> ac_api
+as_ctrl -> ac_api
+ac_api -> do_db
+ac_api -> n_hc55
+ts_p2p -> ts_stun
+ac_apk -> n_apkcat
+g_netcheck -> src_sys
+g_runsh -> ac_api
+g_runsh -> ac_index
+v_lockstep -> d_docs
+d_cal -> src_sys
+</script>
+
+<script>
+'use strict';
+/* ── model ──────────────────────────────────────────────────── */
+const LAGEN = [
+  ['actoren',  'Spelers & apparaten'],
+  ['frontend', 'Frontends & pagina’s — wat de speler draait'],
+  ['engine',   'Engine & contract — VideopacHorse_Core'],
+  ['pairing',  'Pairing, signaling & data — het enige stukje server'],
+  ['infra',    'Infrastructuur & externe bronnen'],
+  ['regie',    'Regie & borging — Meta_VideopacHorse']
+];
+const REPOS = [
+  ['meta','Meta','--meta'], ['core','Core','--core'], ['web','Web','--web'],
+  ['android','Android','--android'], ['deck','SteamDeck','--deck'],
+  ['joy','Joystick','--joy'], ['extern','Extern','--extern']
+];
+let model = null, capOn = false, bewijsOn = false, actieveStap = null;
+// 62 relaties tegelijk is onleesbaar; standaard uit. Klik op een stap toont die van de stap,
+// en de impact-view zet ze automatisch aan (daar zijn ze het punt).
+let impactFocus = '', relatiesAan = false, zoekTerm = '';
+let repoUit = new Set();
+
+function zetRelaties(aan){ relatiesAan = aan; renderPlaat(); }
+
+/* ── impact: BFS over de ongerichte graaf, met afstand ───────── */
+function impactRingen(){
+  if (!impactFocus || !model.byId[impactFocus]) return null;
+  const buren = id => {
+    const s = new Set();
+    model.rels.forEach(r => { if (r.from === id) s.add(r.to); if (r.to === id) s.add(r.from); });
+    (model.byId[id] && model.byId[id].attrs.impact || '').split(',')
+      .map(x => x.trim()).filter(x => x && model.byId[x]).forEach(x => s.add(x));
+    return s;
+  };
+  const afstand = new Map([[impactFocus, 0]]);
+  let rand = [impactFocus];
+  for (let d = 1; d <= 2 && rand.length; d++){
+    const volgende = [];
+    rand.forEach(id => buren(id).forEach(b => {
+      if (!afstand.has(b)) { afstand.set(b, d); volgende.push(b); }
+    }));
+    rand = volgende;
+  }
+  return afstand;
+}
+// wie hangt van dit element af (inkomend) / waar hangt het zelf van af (uitgaand)
+const hangtAf   = id => model.rels.filter(r => r.from === id).map(r => r.to);
+const breektBij = id => model.rels.filter(r => r.to === id).map(r => r.from);
+
+function parseDSL(text){
+  const m = { title:'', views:[], els:[], rels:[] };
+  const byId = {};
+  const lines = text.split('\n');
+  let i = 0;
+  const attrRe = /^-attr\s+([\w]+)\s*=?\s*"([^"]*)"/;
+  while (i < lines.length){
+    let ln = lines[i].trim(); i++;
+    if (!ln || ln.startsWith('#') || ln.startsWith('//')) continue;
+    let mm;
+    if ((mm = ln.match(/^set\s+title\s+"([^"]*)"/))) { m.title = mm[1]; continue; }
+    if ((mm = ln.match(/^set\s+impact\s+dim\s+"([^"]*)"/))) { m.impactDim = mm[1]; continue; }
+    if (ln.startsWith('set ')) continue;
+    if ((mm = ln.match(/^Viewpoint\s+([\w.-]+)\s+"([^"]*)"/))) { m.views.push({id:mm[1],label:mm[2]}); continue; }
+    if ((mm = ln.match(/^([A-Z]\w+)\s+([\w.-]+)\s+"([^"]*)"\s*(.*)$/))){
+      const el = { type:mm[1], id:mm[2], label:mm[3], attrs:{} };
+      const parseAttrs = bl => {
+        let rest = bl, am;
+        while (rest){
+          if ((am = rest.match(attrRe))){ el.attrs[am[1]] = am[2]; }
+          else if ((am = rest.match(/^-(step|fill|stroke|status|icon)\s+"([^"]*)"/))){ el.attrs[am[1]] = am[2]; }
+          else break;
+          rest = rest.slice(am.index + am[0].length).trim();
+        }
+      };
+      const rest = mm[4].trim();
+      if (rest.startsWith('{') && rest.endsWith('}')){
+        parseAttrs(rest.slice(1,-1).trim());
+      } else if (rest === '{'){
+        while (i < lines.length){
+          let bl = lines[i].trim(); i++;
+          if (bl === '}') break;
+          if (!bl || bl.startsWith('#')) continue;
+          parseAttrs(bl);
+        }
+      } else if (rest !== ''){
+        throw new Error('regel ' + i + ': onverwachte tekst na element-declaratie: "' + rest.slice(0,40) + '"');
+      }
+      m.els.push(el); byId[el.id] = el; continue;
+    }
+    if ((mm = ln.match(/^([\w.-]+)\s*->\s*([\w.-]+)/))) { m.rels.push({from:mm[1],to:mm[2]}); continue; }
+    throw new Error('regel ' + i + ' niet herkend: "' + ln.slice(0,60) + '"');
+  }
+  m.rels.forEach(r => { if(!byId[r.from] || !byId[r.to]) throw new Error('relatie naar onbekend id: ' + r.from + ' -> ' + r.to); });
+  m.byId = byId;
+  return m;
+}
+
+function writeDSL(m){
+  const q = s => '"' + (s||'') + '"';
+  let out = [];
+  out.push('# ArchDSL-bron — plaat AP-01 Sessie-reis VideopacHorse-ecosysteem (AGPL-3.0, publiek)');
+  out.push('# Relatierichting: \'A -> B\' betekent A HANGT AF VAN B. Wijzigt B, dan breekt A.');
+  out.push('set language archimate');
+  out.push('set title ' + q(m.title));
+  if (m.impactDim) out.push('set impact dim ' + q(m.impactDim));
+  out.push('');
+  m.views.forEach(v => out.push('Viewpoint ' + v.id + ' ' + q(v.label)));
+  out.push('');
+  m.els.forEach(el => {
+    const keys = Object.keys(el.attrs);
+    if (!keys.length){ out.push(el.type + ' ' + el.id + ' ' + q(el.label)); return; }
+    out.push(el.type + ' ' + el.id + ' ' + q(el.label) + ' {');
+    keys.forEach(k => {
+      if (k === 'step') out.push('  -step ' + q(el.attrs[k]));
+      else out.push('  -attr ' + k + ' = ' + q(el.attrs[k]));
+    });
+    out.push('}');
+  });
+  out.push('');
+  m.rels.forEach(r => out.push(r.from + ' -> ' + r.to));
+  return out.join('\n');
+}
+
+/* ── helpers ────────────────────────────────────────────────── */
+const esc = s => String(s??'').replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const num = s => parseFloat(String(s).replace(',','.'));
+function kpis(el){
+  return Object.keys(el.attrs).filter(k => /^kpi\d*$/.test(k)).map(k => {
+    const p = el.attrs[k].split('|');
+    return { key:k, naam:p[0], eenheid:p[1], waarde:p[2], doel:p[3], richting:p[4]||'n', schat:p[5]==='≈' };
+  });
+}
+// status t.o.v. het doel: goed / uit-de-pas / geen oordeel
+function kpiStatus(k){
+  if (k.richting === 'n') return '';
+  const w = num(k.waarde), d = num(k.doel);
+  if (!isFinite(w) || !isFinite(d)) return '';
+  const goed = k.richting === 'h' ? w >= d : w <= d;
+  return goed ? 'k-goed' : 'k-uit';
+}
+function kpiChip(k){
+  const st = kpiStatus(k);
+  return '<span class="kpi ' + st + '">' + esc(k.naam) + ': <span class="val">' + esc(k.waarde) + '</span> ' +
+    esc(k.eenheid) + (k.doel && k.doel !== k.waarde ? ' <span class="doel">(doel ' + esc(k.doel) + ')</span>' : '') +
+    (k.schat ? ' <span class="schat"></span>' : '') + '</span>';
+}
+const heeftRisico = el => !!el.attrs.risico;
+const heeftKans   = el => !!el.attrs.kans;
+// bewaakbaar = alles wat een artefact of stap is; een Capability is een abstractie
+// en kan per definitie geen gate hebben — die telt dus niet mee als 'onbewaakt'.
+const bewaakbaar  = el => el.type !== 'Capability';
+const onbewaakt   = el => bewaakbaar(el) && (!el.attrs.gate || el.attrs.gate === 'geen');
+function zoekMatch(el){
+  if (!zoekTerm) return true;
+  const t = zoekTerm.toLowerCase();
+  return (el.label + ' ' + (el.attrs.sub||'') + ' ' + (el.attrs.tekst||'') + ' ' + el.id).toLowerCase().includes(t);
+}
+
+/* ── render: plaat ──────────────────────────────────────────── */
+function renderPlaat(){
+  const vlak = document.getElementById('plaatvlak');
+  const stappen = model.els.filter(e => e.type === 'BusinessProcess');
+  const caps = model.els.filter(e => e.type === 'Capability');
+  document.getElementById('titel').textContent = model.title;
+  const ringen = impactRingen();
+  document.body.style.setProperty('--dim', model.impactDim || '.18');
+
+  // klasse per element: focus / ring1 / ring2 / gedimd, plus repo-filter en zoek
+  const klasse = el => {
+    let c = '';
+    if (repoUit.has(el.attrs.repo || 'extern')) c += ' gedimd';
+    else if (!zoekMatch(el)) c += ' gedimd';
+    else if (ringen){
+      const d = ringen.get(el.id);
+      if (d === 0) c += ' focus';
+      else if (d === 2) c += ' ring2';
+      else if (d === undefined) c += ' gedimd';
+    }
+    if (onbewaakt(el)) c += ' onbewaakt';
+    return c;
+  };
+
+  // uitleg-balk
+  const ub = document.getElementById('uitleg');
+  if (impactFocus && model.byId[impactFocus]){
+    const el = model.byId[impactFocus];
+    const direct = breektBij(el.id).length, tot = ringen ? ringen.size - 1 : 0;
+    ub.innerHTML = '<b>Impact-view: ' + esc(el.label) + '</b> — wijzigt dit onderdeel, dan raakt dat ' +
+      '<b>' + direct + '</b> onderdelen direct en <b>' + tot + '</b> binnen twee stappen. ' +
+      'Alles daarbuiten is gedimd; de tweede ring staat halftransparant. Klik het onderdeel voor de gates die je moet draaien.';
+  } else if (bewijsOn){
+    const zonder = model.els.filter(onbewaakt).length;
+    const totaal = model.els.filter(bewaakbaar).length;
+    ub.innerHTML = '<b>Bewijs-modus</b> — elk onderdeel toont de gate die hem bewaakt. ' +
+      '<b>' + zonder + ' van ' + totaal + '</b> onderdelen zijn <b>onbewaakt</b> en staan rood omrand. ' +
+      'Een test die niet kan falen bewijst niets (P-12); geen test is de sterkere variant daarvan.';
+  } else {
+    ub.innerHTML = '<b>De sessie-reis</b> loopt van links naar rechts: pagina openen tot herstel na een onderbreking. ' +
+      'Daaronder de onderdelen die elke stap waarmaken, gekleurd per repo. Kies een onderdeel in de <b>impact-pulldown</b> ' +
+      'om te zien wat een wijziging daar raakt, of zet <b>bewijs-modus</b> aan om te zien wat er onbewaakt is.';
+  }
+
+  let h = '<svg class="rel" id="rellijnen"></svg>';
+  h += '<div class="laagkop">De sessie-reis — klik een stap (de betrokken onderdelen lichten op)</div>';
+  h += '<div class="keten" id="keten"><div class="speler-dot"></div>';
+  stappen.forEach(p => {
+    h += '<div class="chev' + (actieveStap===p.id?' actief':'') + klasse(p) + '" data-id="' + p.id + '">';
+    h += '<h3><span class="nr">' + esc(p.attrs.step||'') + '</span>' + esc(p.label) + '</h3>';
+    h += '<p class="sub">' + esc(p.attrs.sub||'') + '</p>';
+    kpis(p).forEach(k => { h += kpiChip(k); });
+    h += gateHtml(p);
+    if (heeftRisico(p)) h += '<span class="badge ' + (p.attrs.risico_zwaar ? 'b-risico' : 'b-risico2') + '">' +
+      (p.attrs.risico_zwaar ? '▲' : '△') + ' risico</span>';
+    else if (heeftKans(p)) h += '<span class="badge b-kans">● kans</span>';
+    h += '</div>';
+  });
+  h += '</div>';
+
+  if (capOn){
+    h += '<div class="capband">';
+    caps.forEach(c => {
+      const dekt = (c.attrs.dekt||'').split(',').map(s => s.trim());
+      const idxs = dekt.map(d => stappen.findIndex(p => p.id === d)).filter(x => x >= 0);
+      if (!idxs.length) return;
+      const a = Math.min(...idxs)+1, b = Math.max(...idxs)+1;
+      const nivo = parseInt(c.attrs.nivo,10) || 1;
+      const kleuren = ['var(--seq250)','var(--seq250)','var(--seq400)','var(--seq550)','var(--seq650)'];
+      const rel = !ringen || ringen.has(c.id) || dekt.some(d => ringen.has(d));
+      h += '<div class="caprow' + (rel ? '' : ' gedimd') + '" data-cap="' + c.id +
+        '" style="grid-column:' + a + ' / ' + (b+1) + ';background:' + kleuren[nivo-1] + ';cursor:pointer">' +
+        '<span class="naam">' + esc(c.label) + '</span>' +
+        '<span class="nivo">' + '●'.repeat(nivo) + '○'.repeat(5-nivo) + ' n' + nivo + '</span>' +
+        '<span class="schat" style="color:#fff"></span></div>';
+    });
+    h += '</div>';
+  }
+
+  LAGEN.forEach(([lg, titel]) => {
+    const blokken = model.els.filter(e => e.attrs.laag === lg);
+    if (!blokken.length) return;
+    h += '<div class="laagkop">' + esc(titel) + '</div><div class="rij">';
+    blokken.forEach(b => {
+      h += '<div class="blok ' + (b.attrs.repo||'extern') + klasse(b) +
+        '" data-id="' + b.id + '" id="blok-' + b.id + '">';
+      h += '<h4>' + esc(b.label) + '</h4><p>' + esc(b.attrs.sub||'') + '</p>';
+      kpis(b).forEach(k => { h += kpiChip(k); });
+      h += gateHtml(b);
+      if (heeftRisico(b)) h += '<span class="badge ' + (b.attrs.risico_zwaar ? 'b-risico' : 'b-risico2') + '">' +
+        (b.attrs.risico_zwaar ? '▲' : '△') + ' risico</span>';
+      else if (heeftKans(b)) h += '<span class="badge b-kans">● kans</span>';
+      h += '</div>';
+    });
+    h += '</div>';
+  });
+  vlak.innerHTML = h;
+
+  vlak.querySelectorAll('.chev').forEach(c => c.addEventListener('click', () => {
+    actieveStap = (actieveStap === c.dataset.id) ? null : c.dataset.id;
+    renderPlaat(); if (actieveStap) toonDetail(model.byId[actieveStap]);
+  }));
+  vlak.querySelectorAll('.blok').forEach(b => b.addEventListener('click', e => {
+    e.stopPropagation(); toonDetail(model.byId[b.dataset.id]);
+  }));
+  vlak.querySelectorAll('.caprow').forEach(c => c.addEventListener('click', () => {
+    toonCapDetail(model.byId[c.dataset.cap]);
+  }));
+  requestAnimationFrame(tekenRelaties);
+}
+function gateHtml(el){
+  if (onbewaakt(el)) return '<span class="ongate">⚠ geen gate</span>';
+  return '<span class="gate">✓ ' + esc(el.attrs.gate) + '</span>';
+}
+
+function eindpunt(id, vlak, pr){
+  const el = vlak.querySelector('.chev[data-id="' + id + '"]') || vlak.querySelector('#blok-' + id);
+  if (!el || el.offsetParent === null) return null;
+  const r = el.getBoundingClientRect();
+  return { x: r.left - pr.left + r.width/2 + vlak.scrollLeft,
+           top: r.top - pr.top, bottom: r.bottom - pr.top };
+}
+function tekenRelaties(){
+  const svg = document.getElementById('rellijnen');
+  if (!svg) return;
+  svg.innerHTML = '';
+  const vlak = document.getElementById('plaatvlak');
+  const pr = vlak.getBoundingClientRect();
+  const kleur = getComputedStyle(document.body).getPropertyValue('--web').trim();
+  const ringen = impactRingen();
+  const dimw = parseFloat(model.impactDim || '.18');
+  const lijst = relatiesAan ? model.rels
+              : (actieveStap ? model.rels.filter(r => r.from === actieveStap) : []);
+  lijst.forEach(r => {
+    const a = eindpunt(r.from, vlak, pr), b = eindpunt(r.to, vlak, pr);
+    if (!a || !b) return;
+    const uitRepo = repoUit.has(model.byId[r.from].attrs.repo||'extern') ||
+                    repoUit.has(model.byId[r.to].attrs.repo||'extern');
+    const gedimd = uitRepo || (ringen && !(ringen.has(r.from) && ringen.has(r.to)));
+    const actief = actieveStap && r.from === actieveStap;
+    if (actief && !gedimd){ const t = vlak.querySelector('#blok-' + r.to); if (t) t.classList.add('hl'); }
+    const x1 = a.x, y1 = a.bottom, x2 = b.x, y2 = b.top;
+    const p = document.createElementNS('http://www.w3.org/2000/svg','path');
+    const mid = (y1+y2)/2;
+    p.setAttribute('d', `M ${x1} ${y1} C ${x1} ${mid}, ${x2} ${mid}, ${x2} ${y2}`);
+    p.setAttribute('fill','none'); p.setAttribute('stroke',kleur);
+    p.setAttribute('stroke-width', actief ? '2.2' : '1.4');
+    p.setAttribute('stroke-dasharray','5 4');
+    p.setAttribute('opacity', gedimd ? String(Math.min(dimw, .8)) : (actief ? '.9' : '.5'));
+    svg.appendChild(p);
+  });
+}
+
+/* ── detailpaneel ───────────────────────────────────────────── */
+function lijst(ids, leegtekst){
+  if (!ids.length) return '<ul><li class="geen">' + leegtekst + '</li></ul>';
+  return '<ul>' + ids.map(id => '<li><a href="#" onclick="kies(\'' + id + '\');return false">' +
+    esc(model.byId[id] ? model.byId[id].label : id) + '</a></li>').join('') + '</ul>';
+}
+function kies(id){ toonDetail(model.byId[id]); }
+function toonDetail(el){
+  const pn = document.getElementById('paneel');
+  const repoNaam = (REPOS.find(r => r[0] === (el.attrs.repo||'extern'))||[,'—'])[1];
+  let hh = '<h3>' + esc(el.label) +
+    '<span class="pil" style="background:var(' + ((REPOS.find(r => r[0]===(el.attrs.repo||'extern'))||[,,'--extern'])[2]) + ')">' +
+    esc(repoNaam) + '</span></h3>';
+  hh += '<p>' + esc(el.attrs.tekst || '') + '</p>';
+
+  const ks = kpis(el);
+  if (ks.length){
+    hh += '<table class="kpit"><tr><th>Meting</th><th>waarde</th><th>doel</th></tr>';
+    ks.forEach(k => {
+      const st = kpiStatus(k);
+      hh += '<tr><td>' + esc(k.naam) + (k.schat?' <span class="schat"></span>':'') + '</td>' +
+        '<td class="' + st + '"><b>' + esc(k.waarde) + '</b> ' + esc(k.eenheid) + '</td>' +
+        '<td>' + esc(k.doel || '—') + '</td></tr>';
+    });
+    hh += '</table>';
+  }
+
+  if (el.attrs.risico) hh += '<span class="mark ' + (el.attrs.risico_zwaar?'m-risico':'m-risico2') + '">' +
+    (el.attrs.risico_zwaar?'▲':'△') + ' <b>Risico.</b> ' + esc(el.attrs.risico) + '</span>';
+  if (el.attrs.kans) hh += '<span class="mark m-kans">● <b>Kans.</b> ' + esc(el.attrs.kans) + '</span>';
+
+  hh += '<h4>Hangt af van</h4>' + lijst(hangtAf(el.id), 'niets — dit is een fundament');
+  hh += '<h4>Breekt als dit wijzigt</h4>' + lijst(breektBij(el.id), 'niets bekend — bladelement');
+
+  // gates van het element zelf plus die van alles wat eraan hangt
+  const geraakt = [el.id].concat(breektBij(el.id));
+  const gates = [...new Set(geraakt.map(id => model.byId[id].attrs.gate)
+    .filter(g => g && g !== 'geen'))];
+  if (gates.length) hh += '<span class="mark m-gate">✓ <b>Draaien bij een wijziging hier:</b><br>' +
+    gates.map(esc).join('<br>') + '</span>';
+  else hh += '<span class="mark m-risico">⚠ <b>Geen gate</b> — een wijziging hier wordt door niets betrapt.</span>';
+
+  if (el.attrs.grond) hh += '<div class="grond">Grondslag: ' + esc(el.attrs.grond) + '</div>';
+  pn.innerHTML = hh;
+}
+function toonCapDetail(c){
+  const nivo = parseInt(c.attrs.nivo,10) || 1;
+  document.getElementById('paneel').innerHTML =
+    '<h3>' + esc(c.label) + '<span class="pil" style="background:var(--seq550)">capability</span></h3>' +
+    '<p><b>' + '●'.repeat(nivo) + '○'.repeat(5-nivo) + ' niveau ' + nivo + ' van 5</b> <span class="schat"></span></p>' +
+    '<p>' + esc(c.attrs.toel||'') + '</p>' +
+    '<h4>Dekt stappen</h4>' + lijst((c.attrs.dekt||'').split(',').map(s=>s.trim()).filter(Boolean), '—');
+}
+
+/* ── controls ───────────────────────────────────────────────── */
+function renderControls(){
+  const grp = document.getElementById('repo-knoppen');
+  grp.innerHTML = '';
+  REPOS.forEach(([id, naam, kleurvar]) => {
+    const b = document.createElement('button');
+    b.innerHTML = '<span class="rd" style="background:var(' + kleurvar + ')"></span>' + naam;
+    b.className = repoUit.has(id) ? '' : 'actief';
+    b.title = repoUit.has(id) ? 'toon ' + naam : 'dim ' + naam;
+    b.onclick = () => { repoUit.has(id) ? repoUit.delete(id) : repoUit.add(id); renderControls(); renderPlaat(); };
+    grp.appendChild(b);
+  });
+  document.getElementById('btn-cap').className = capOn ? 'actief' : '';
+  document.getElementById('btn-bewijs').className = bewijsOn ? 'actief' : '';
+
+  const lg = document.getElementById('legenda');
+  lg.innerHTML =
+    '<span>▲ <span class="dot" style="background:var(--critical)"></span> zwaar risico</span>' +
+    '<span>△ <span class="dot" style="background:var(--serious)"></span> risico</span>' +
+    '<span>● <span class="dot" style="background:var(--good)"></span> kans</span>' +
+    '<span>✓/✗ meting t.o.v. doel</span><span>≈ schatting</span>';
+
+  const selEl = document.getElementById('impact-select');
+  let opts = '<option value="">Impact-view: — alles even zichtbaar —</option>';
+  opts += '<optgroup label="Sessie-reis">' +
+    model.els.filter(e => e.type === 'BusinessProcess').map(p =>
+      '<option value="' + p.id + '">' + esc((p.attrs.step ? p.attrs.step + ' · ' : '') + p.label) + '</option>').join('') +
+    '</optgroup>';
+  LAGEN.forEach(([lgid, titel]) => {
+    const blokken = model.els.filter(e => e.attrs.laag === lgid);
+    if (!blokken.length) return;
+    opts += '<optgroup label="' + esc(titel) + '">' +
+      blokken.map(b => '<option value="' + b.id + '">' + esc(b.label) + '</option>').join('') + '</optgroup>';
+  });
+  selEl.innerHTML = opts;
+  selEl.value = model.byId[impactFocus] ? impactFocus : '';
+  selEl.onchange = () => {
+    impactFocus = selEl.value;
+    if (impactFocus){
+      relatiesAan = true;
+      const c = document.getElementById('chk-rel'); if (c) c.checked = true;
+      if (model.byId[impactFocus]) toonDetail(model.byId[impactFocus]);
+    }
+    renderPlaat();
+  };
+}
+function toggleCap(){ capOn = !capOn; renderControls(); renderPlaat(); }
+function toggleBewijs(){ bewijsOn = !bewijsOn; document.body.classList.toggle('bewijs', bewijsOn);
+  renderControls(); renderPlaat(); }
+function filter(cls, aan){ document.body.classList.toggle(cls, aan); }
+function tab(t){
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('actief', b.dataset.tab === t));
+  document.querySelectorAll('.tabblad').forEach(b => b.classList.remove('actief'));
+  document.getElementById('tab-' + t).classList.add('actief');
+  if (t === 'plaat') renderPlaat();
+}
+
+/* ── repository (bewerkbaar) ────────────────────────────────── */
+function inp(val, pad, cls){
+  return '<input type="text" class="' + (cls||'') + '" value="' + esc(val).replace(/"/g,'&quot;') +
+    '" data-pad="' + pad + '">';
+}
+function ta(val, pad){ return '<textarea data-pad="' + pad + '">' + esc(val) + '</textarea>'; }
+function sel(val, pad, opts){
+  return '<select data-pad="' + pad + '">' + opts.map(o =>
+    '<option value="' + o + '"' + (o===val?' selected':'') + '>' + (o||'—') + '</option>').join('') + '</select>';
+}
+function renderRepo(){
+  const stappen = model.els.filter(e => e.type === 'BusinessProcess');
+  let hh = '<h2>Sessie-reis — stappen</h2><table><tr><th style="width:9rem">Stap</th><th style="width:8rem">Sub</th>' +
+    '<th>Toelichting</th><th style="width:16rem">Risico / kans</th><th style="width:10rem">Gate</th></tr>';
+  stappen.forEach(p => {
+    hh += '<tr><td><b>' + inp(p.label, 'el.' + p.id + '.label') + '</b></td>' +
+      '<td>' + inp(p.attrs.sub||'', 'el.' + p.id + '.attrs.sub') + '</td>' +
+      '<td>' + ta(p.attrs.tekst||'', 'el.' + p.id + '.attrs.tekst') + '</td>' +
+      '<td><div>▲ ' + ta(p.attrs.risico||'', 'el.' + p.id + '.attrs.risico') + '</div>' +
+          '<div>● ' + ta(p.attrs.kans||'', 'el.' + p.id + '.attrs.kans') + '</div></td>' +
+      '<td>' + ta(p.attrs.gate||'', 'el.' + p.id + '.attrs.gate') + '</td></tr>';
+  });
+  hh += '</table>';
+
+  hh += '<h2>Metingen (richting: h = hoger beter, l = lager beter, n = geen oordeel)</h2>';
+  hh += '<table><tr><th>Onderdeel</th><th>Meting</th><th>Eenheid</th><th>waarde</th><th>doel</th><th>richting</th><th>≈</th></tr>';
+  model.els.forEach(el => kpis(el).forEach(k => {
+    const basis = 'kpi.' + el.id + '.' + k.key + '.';
+    hh += '<tr><td>' + esc(el.label) + '</td><td>' + inp(k.naam, basis+'0') + '</td>' +
+      '<td>' + inp(k.eenheid, basis+'1') + '</td>' +
+      '<td>' + inp(k.waarde, basis+'2', 'num') + '</td>' +
+      '<td>' + inp(k.doel, basis+'3', 'num') + '</td>' +
+      '<td>' + sel(k.richting, basis+'4', ['h','l','n']) + '</td>' +
+      '<td>' + sel(k.schat?'≈':'-', basis+'5', ['≈','-']) + '</td></tr>';
+  }));
+  hh += '</table>';
+
+  hh += '<h2>Capabilities (niveau 1–5, alle ≈)</h2><table><tr><th>Capability</th><th>Dekt stappen</th><th>Niveau</th><th>Toelichting</th></tr>';
+  model.els.filter(e => e.type === 'Capability').forEach(c => {
+    hh += '<tr><td>' + inp(c.label, 'el.' + c.id + '.label') + '</td>' +
+      '<td>' + inp(c.attrs.dekt||'', 'el.' + c.id + '.attrs.dekt') + '</td>' +
+      '<td>' + inp(c.attrs.nivo||'1', 'el.' + c.id + '.attrs.nivo', 'num') + '</td>' +
+      '<td>' + ta(c.attrs.toel||'', 'el.' + c.id + '.attrs.toel') + '</td></tr>';
+  });
+  hh += '</table>';
+
+  hh += '<h2>Impact & bewijs per onderdeel</h2>';
+  hh += '<p class="hint">De kolom <b>breekt als dit wijzigt</b> is afgeleid uit de relaties in de bron ' +
+    '(inkomende pijlen) en dus niet handmatig te vullen. De kolom <b>extra impact-id’s</b> voegt ' +
+    'verbanden toe die geen technische afhankelijkheid zijn — bijvoorbeeld: een lock-step-bump raakt ' +
+    'de skelet-frontends zonder dat er code tussen zit. <b>Gate</b> leeg of <code>geen</code> markeert ' +
+    'het onderdeel als onbewaakt.</p>';
+  hh += '<table><tr><th>Onderdeel</th><th>Hangt af van</th><th>Breekt als dit wijzigt</th><th>Extra impact-id’s</th><th>Gate</th></tr>';
+  model.els.filter(e => e.attrs.laag).forEach(el => {
+    hh += '<tr><td>' + esc(el.label) + '</td>' +
+      '<td style="color:var(--ink-3)">' + esc(hangtAf(el.id).join(', ') || '—') + '</td>' +
+      '<td style="color:var(--ink-3)">' + esc(breektBij(el.id).join(', ') || '—') + '</td>' +
+      '<td>' + inp(el.attrs.impact || '', 'el.' + el.id + '.attrs.impact') + '</td>' +
+      '<td>' + inp(el.attrs.gate || '', 'el.' + el.id + '.attrs.gate') + '</td></tr>';
+  });
+  hh += '</table>';
+
+  hh += '<h2>Onderdelen (lagen &amp; repo’s)</h2><table><tr><th>Onderdeel</th><th>Laag</th><th>Repo</th><th>Sub</th><th>Toelichting</th><th>Grondslag</th></tr>';
+  model.els.filter(e => e.attrs.laag).forEach(b => {
+    hh += '<tr><td>' + inp(b.label, 'el.' + b.id + '.label') + '</td>' +
+      '<td>' + sel(b.attrs.laag, 'el.' + b.id + '.attrs.laag', LAGEN.map(l => l[0])) + '</td>' +
+      '<td>' + sel(b.attrs.repo||'extern', 'el.' + b.id + '.attrs.repo', REPOS.map(r => r[0])) + '</td>' +
+      '<td>' + inp(b.attrs.sub||'', 'el.' + b.id + '.attrs.sub') + '</td>' +
+      '<td>' + ta(b.attrs.tekst||'', 'el.' + b.id + '.attrs.tekst') + '</td>' +
+      '<td>' + inp(b.attrs.grond||'', 'el.' + b.id + '.attrs.grond') + '</td></tr>';
+  });
+  hh += '</table>';
+
+  const rc = document.getElementById('repo-inhoud');
+  rc.innerHTML = hh;
+  rc.querySelectorAll('input,textarea,select').forEach(x => x.addEventListener('input', () => {
+    pasToe(x.dataset.pad, x.value); renderPlaat(); syncDSL();
+  }));
+}
+
+function pasToe(pad, val){
+  const p = pad.split('.');
+  if (p[0] === 'el'){
+    const el = model.byId[p[1]];
+    if (p[2] === 'label') el.label = val;
+    else { if (val === '') delete el.attrs[p[3]]; else el.attrs[p[3]] = val; }
+  } else if (p[0] === 'kpi'){
+    const el = model.byId[p[1]], delen = el.attrs[p[2]].split('|');
+    delen[+p[3]] = val; el.attrs[p[2]] = delen.join('|');
+  }
+}
+
+/* ── DSL-tab ────────────────────────────────────────────────── */
+const dslArea = () => document.getElementById('dsl-bron');
+const dslStatus = () => document.getElementById('dsl-status');
+function syncDSL(){ dslArea().value = writeDSL(model); zetStatus(true, 'bron bijgewerkt vanuit repository'); }
+function zetStatus(ok, msg){
+  const s = dslStatus(); s.className = ok ? 'ok' : 'fout';
+  s.textContent = (ok ? '✓ ' : '✗ ') + msg;
+}
+let debounce = null;
+function initDSLTab(){
+  dslArea().addEventListener('input', () => {
+    clearTimeout(debounce);
+    debounce = setTimeout(() => {
+      try {
+        const nieuw = parseDSL(dslArea().value);
+        model = nieuw;
+        if (model.byId[actieveStap] == null) actieveStap = null;
+        if (model.byId[impactFocus] == null) impactFocus = '';
+        zetStatus(true, model.els.length + ' elementen, ' + model.rels.length +
+          ' relaties — plaat en repository live bijgewerkt');
+        renderControls(); renderPlaat(); renderRepo();
+      } catch (e){ zetStatus(false, e.message + ' — laatste geldige model blijft actief'); }
+    }, 400);
+  });
+}
+
+/* ── init ───────────────────────────────────────────────────── */
+(function(){
+  // build.sh vult 0.6.1-Radiola met de lock-step-versie. Wie dit bestand rechtstreeks uit de
+  // repo opent krijgt het ongebouwde artefact te zien — dan zeggen we dat, in plaats van
+  // een marker te tonen die op een defect lijkt.
+  const vEl = document.getElementById('versie');
+  const ongebouwd = vEl.textContent.trim() === '@' + 'VERSION@';
+  if (ongebouwd) vEl.textContent = 'repo-bron (ongebouwd)';
+
+  const bron = document.getElementById('bron-init').textContent
+    .replace(/0.6.1-Radiola/g, ongebouwd ? 'repo-bron' : vEl.textContent).trim();
+  model = parseDSL(bron);
+  dslArea().value = bron;
+  const zonderGate = model.els.filter(onbewaakt).length;
+  zetStatus(true, model.els.length + ' elementen, ' + model.rels.length + ' relaties geparsed — ' +
+    zonderGate + ' van ' + model.els.filter(bewaakbaar).length + ' zonder gate');
+  document.getElementById('zoek').addEventListener('input', e => {
+    zoekTerm = e.target.value.trim(); renderPlaat();
+  });
+  renderControls(); renderPlaat(); renderRepo(); initDSLTab();
+  window.addEventListener('resize', tekenRelaties);
+})();
+</script>
+</body>
+</html>
