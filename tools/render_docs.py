@@ -189,11 +189,18 @@ de leesbare kant ervan.</p>
 <div class="tablewrap"><table><thead><tr><th>Document</th><th>Waarover</th></tr></thead><tbody>
 {rows}
 </tbody></table></div>
-<h2>Architectuurplaat</h2>
+<h2>Architectuurplaten</h2>
 <p><a href="../architectuur/"><strong>Interactieve viewer</strong></a> — vijf gezichtspunten
 (conceptueel, logisch, fysiek, transacties, journeys), met afspeelbare scenario's voor het
 opzetten van netplay en de weg die host en gast door de schermen afleggen. Wisselbaar tussen
-ArchiMate- en Dragon1-notatie; export naar JSON, DSL, .archimate en SVG.</p>
+ArchiMate- en Dragon1-notatie; export naar JSON, DSL, .archimate en SVG. Gaat over
+<em>deze</em> repository.</p>
+<p><a href="../architectuur/sessiereis.html"><strong>AP-01 — sessie-reis &amp; ecosysteem</strong></a>
+— model-gedreven plaat over alle zes de repository's, van pagina openen tot herstel na een
+onderbreking. Bevat een <strong>impact-analyse</strong> (kies een onderdeel en zie wat er breekt
+als het wijzigt, plus welke gates je dan moet draaien) en een <strong>bewijs-modus</strong> die
+laat zien welke onderdelen door geen enkele test bewaakt worden. De ArchDSL-bron staat in het
+derde tabblad en is live te bewerken.</p>
 <h2>Schermen</h2>
 <p>{screens}</p>
 """

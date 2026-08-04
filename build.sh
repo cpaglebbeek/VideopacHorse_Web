@@ -25,5 +25,14 @@ codename=$(python3 -c "import json;d=json.load(open('$(dirname "$0")/version.jso
 sed "s/@VERSION@/$codename/g" "$(dirname "$0")/architectuur/VideopacHorse_Web_viewer.html" \
   > "$web_dir/architectuur/index.html"
 cp "$(dirname "$0")/architectuur/VideopacHorse_Web_archdsl.dsl" "$web_dir/architectuur/"
+# AP-01 (sessie-reis over alle zes de repo's) hoort thuis in de sub-master, want hij gaat
+# over het ecosysteem en niet over deze repo. We halen hem via de zusterpad-conventie op,
+# net als de wasm uit de Core: één bron, hier alleen een gepubliceerd artefact.
+ap01_src="$(dirname "$0")/../Meta_VideopacHorse/architectuur/VideopacHorse_AP01_sessiereis.html"
+if [ -f "$ap01_src" ]; then
+  sed "s/@VERSION@/$codename/g" "$ap01_src" > "$web_dir/architectuur/sessiereis.html"
+else
+  echo "WAARSCHUWING: $ap01_src ontbreekt — /videopac/architectuur/sessiereis.html niet bijgewerkt" >&2
+fi
 
 echo "OK: web/g7000.{js,wasm} + web/docs/ + web/architectuur/ bijgewerkt, cache-buster ?v=$ver ($(date +%F))"
