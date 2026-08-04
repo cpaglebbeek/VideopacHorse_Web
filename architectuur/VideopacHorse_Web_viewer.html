@@ -80,6 +80,17 @@ body {
   font-weight: 600;
   color: #333;
 }
+.toolbar .plaatlink {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1c5cab;
+  text-decoration: none;
+  border: 1px solid #aaa;
+  border-radius: 5px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.toolbar .plaatlink:hover { background: #eef4fc; }
 .toolbar label, .toolbar select, .toolbar button {
   font-family: inherit;
   font-size: 13px;
@@ -300,6 +311,11 @@ svg#canvas { display: block; background: #fff; }
   <span class="sep"></span>
 
   <button id="btnReset" title="Herstel ingebouwde model">&#8634; Reset</button>
+
+  <span class="sep"></span>
+
+  <a class="plaatlink" href="./sessiereis.html"
+     title="AP-01 — sessie-reis over alle zes de repository's, met impact-analyse en bewijs-modus">&#128506; AP-01 sessie-reis (ecosysteem)</a>
 
   <span class="right">v0.1.0 &middot; deterministisch &middot; standalone</span>
 </div>
